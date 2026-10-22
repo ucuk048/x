@@ -4,26 +4,40 @@
 -- ==============================================================================
 
 local HUB_NAME = "Antigravity Hub"
-local HUB_VERSION = "9.5.0"
+local HUB_VERSION = "9.6.3"
 local CONFIG_FILE = "antigravity_hub_config.json"
-local CONFIG_VERSION = "9.6.1"
+local CONFIG_VERSION = "9.6.3"
 local WAYPOINTS_FILE = "antigravity_waypoints.json"
 
--- 0. FLIGHT-LOCK PROTOCOL (BARRAGE PATTERN FROM loader.txt)
-local _flight = shared._barrageLoaderFlight or shared._agyLoaderFlight
-if type(_flight) == "table" and _flight.Running and os.clock() - (_flight.StartedAt or 0) < 600 then
-    pcall(function()
-        game:GetService("StarterGui"):SetCore("SendNotification", {
-            Title = "BARRAGE",
-            Text = "BARRAGE sedang memuat. Mohon tunggu sebentar...",
-            Duration = 4
-        })
-    end)
-    return
-end
-_flight = { Running = true, Ready = false, StartedAt = os.clock() }
-shared._barrageLoaderFlight = _flight
-shared._agyLoaderFlight = _flight
+-- 0. INSTANT SAFE RUNNER & UNFREEZE ENGINE (ZERO-LOCKOUT)
+shared._barrageLoaderFlight = { Running = false, Ready = true, StartedAt = os.clock() }
+shared._agyLoaderFlight = shared._barrageLoaderFlight
+
+-- Pemulihan & Unfreeze Karakter Instan (Anti-Stuck Movement)
+pcall(function()
+    local lp = game:GetService("Players").LocalPlayer
+    local char = lp and lp.Character
+    if char then
+        local root = char:FindFirstChild("HumanoidRootPart")
+        if root then
+            for _, c in ipairs(root:GetChildren()) do
+                if c:IsA("BodyVelocity") or c:IsA("BodyGyro") or c:IsA("BodyPosition") then
+                    pcall(function() c:Destroy() end)
+                end
+            end
+        end
+        local hum = char:FindFirstChildOfClass("Humanoid")
+        if hum then
+            hum.PlatformStand = false
+            hum.Sit = false
+            hum.UseJumpPower = true
+            if hum.WalkSpeed < 16 then hum.WalkSpeed = 16 end
+            if hum.JumpPower < 50 then hum.JumpPower = 50 end
+            hum:SetStateEnabled(Enum.HumanoidStateType.Jumping, true)
+            hum:SetStateEnabled(Enum.HumanoidStateType.GettingUp, true)
+        end
+    end
+end)
 
 -- 1. PEMBERSIHAN SESI LAMA (GLOBAL SINGLETON FROM payload.lua)
 if type(_G.AntigravityHubInstance) == "table" and _G.AntigravityHubInstance.Cleanup then
@@ -45,16 +59,38 @@ local Services = {
     ProximityPromptService = game:GetService("ProximityPromptService")
 }
 
-local LocalPlayer = Services.Players.LocalPlayer or Services.Players.PlayerAdded:Wait()
-local Camera = workspace.CurrentCamera or workspace:WaitForChild("Camera")
-local Mouse = LocalPlayer:GetMouse()
-local PlayerGui = LocalPlayer:FindFirstChildOfClass("PlayerGui") or Services.CoreGui
+-- Resolusi Aman LocalPlayer tanpa deadlock
+local LocalPlayer = Services.Players.LocalPlayer
+if not LocalPlayer then
+    local t0 = os.clock()
+    repeat
+        task.wait(0.05)
+        LocalPlayer = Services.Players.LocalPlayer
+    until LocalPlayer or (os.clock() - t0 > 3)
+end
+if not LocalPlayer then
+    LocalPlayer = Services.Players:GetPlayers()[1]
+end
 
+local Camera = workspace.CurrentCamera or workspace:FindFirstChildOfClass("Camera")
+local Mouse = LocalPlayer and LocalPlayer:GetMouse()
+
+-- Resolusi UI Parent Khusus Arceus X, Delta & Mobile Android (100% Tampil di Layar)
 local function getSafeUIParent()
-    if gethui then return gethui() end
-    local ok, _ = pcall(function() return Services.CoreGui.Name end)
-    if ok then return Services.CoreGui end
-    return PlayerGui
+    local lp = Services.Players.LocalPlayer or LocalPlayer
+    if lp then
+        local pg = lp:FindFirstChildOfClass("PlayerGui") or lp:FindFirstChild("PlayerGui")
+        if pg then return pg end
+        local ok, wpg = pcall(function() return lp:WaitForChild("PlayerGui", 3) end)
+        if ok and wpg then return wpg end
+    end
+    if gethui then
+        local ok, h = pcall(gethui)
+        if ok and h then return h end
+    end
+    local ok, cg = pcall(function() return Services.CoreGui end)
+    if ok and cg then return cg end
+    return lp and lp:WaitForChild("PlayerGui", 5)
 end
 
 local function tween(object, properties, duration)
@@ -502,9 +538,10 @@ local function applyESP(player)
 
     local function setupChar(char)
         if not char then return end
-        local root = char:WaitForChild("HumanoidRootPart", 5)
-        local hum = char:WaitForChild("Humanoid", 5)
-        if not root or not hum then return end
+        task.spawn(function()
+            local root = char:WaitForChild("HumanoidRootPart", 3)
+            local hum = char:WaitForChild("Humanoid", 3)
+            if not root or not hum then return end
 
         -- Chams
         local highlight = char:FindFirstChild("AgyHighlight") or Instance.new("Highlight")
@@ -550,9 +587,10 @@ local function applyESP(player)
         end)
 
         HubState.EspObjects[player] = { Highlight = highlight, Tag = tag, Label = label, Root = root, Hum = hum, Tracer = tracer }
+        end)
     end
 
-    if player.Character then setupChar(player.Character) end
+    if player.Character then task.spawn(setupChar, player.Character) end
     player.CharacterAdded:Connect(setupChar)
 end
 
@@ -621,64 +659,37 @@ local function enforceMobility(hum)
     pcall(function()
         local isPlayerModsOn = HubState.Config.PlayerModsEnabled
         local pList = HubState.Config.PlayerModsList or {}
-        local mList = HubState.Config.MiningModsList or {}
 
-        local s = 16
+        local targetSpeed = 16
         if isPlayerModsOn and pList["Speed"] then
-            s = HubState.Config.WalkSpeed or 32
+            targetSpeed = HubState.Config.WalkSpeed or 32
         elseif HubState.Config.WalkSpeed and HubState.Config.WalkSpeed > 16 then
-            s = HubState.Config.WalkSpeed
+            targetSpeed = HubState.Config.WalkSpeed
         end
+        if targetSpeed < 16 then targetSpeed = 16 end
 
-        -- No Slowdown & Dig While Mining: Pertahankan mobilitas penuh saat menambang / cuaca es
-        local isNoSlow = HubState.Config.MiningModsEnabled and (mList["No Slowdown"] or mList["Dig While Mining"])
-        if isNoSlow then
-            if hum.WalkSpeed < s then
-                hum.WalkSpeed = s
-            end
-            hum:SetStateEnabled(Enum.HumanoidStateType.Jumping, true)
-        else
-            if hum.WalkSpeed ~= s then
-                hum.WalkSpeed = s
-            end
-        end
-
-        local j = 50
+        local targetJump = 50
         if isPlayerModsOn and pList["Jump Boost"] then
-            j = HubState.Config.JumpPower or 70
+            targetJump = HubState.Config.JumpPower or 70
         elseif HubState.Config.JumpPower and HubState.Config.JumpPower > 50 then
-            j = HubState.Config.JumpPower
+            targetJump = HubState.Config.JumpPower
         end
+        if targetJump < 50 then targetJump = 50 end
 
         hum.UseJumpPower = true
-        if hum.JumpPower ~= j then
-            hum.JumpPower = j
+        if hum.WalkSpeed ~= targetSpeed then
+            hum.WalkSpeed = targetSpeed
         end
+        if hum.JumpPower ~= targetJump then
+            hum.JumpPower = targetJump
+        end
+        hum:SetStateEnabled(Enum.HumanoidStateType.Jumping, true)
     end)
 end
 
 local function bindHumanoid(hum)
     if not hum then return end
     enforceMobility(hum)
-    hum:GetPropertyChangedSignal("WalkSpeed"):Connect(function()
-        local mList = HubState.Config.MiningModsList or {}
-        local isNoSlow = HubState.Config.MiningModsEnabled and (mList["No Slowdown"] or mList["Dig While Mining"])
-        local s = HubState.Config.WalkSpeed or 16
-        if isNoSlow and hum.WalkSpeed < s then
-            hum.WalkSpeed = s
-        elseif not isNoSlow and s and s > 0 and hum.WalkSpeed ~= s then
-            hum.WalkSpeed = s
-        end
-    end)
-    hum:GetPropertyChangedSignal("JumpPower"):Connect(function()
-        local j = HubState.Config.JumpPower
-        if j and j > 0 then
-            hum.UseJumpPower = true
-            if hum.JumpPower ~= j then
-                hum.JumpPower = j
-            end
-        end
-    end)
 end
 
 if LocalPlayer.Character then
@@ -694,22 +705,13 @@ LocalPlayer.CharacterAdded:Connect(function(char)
     end
 end)
 
+-- Heartbeat Mobility Keeper (Tanpa CFrame glitch & Tanpa Event Loop)
 Services.RunService.Heartbeat:Connect(function(dt)
     local char = LocalPlayer.Character
     if char then
         local hum = char:FindFirstChildOfClass("Humanoid")
-        local root = char:FindFirstChild("HumanoidRootPart")
         if hum then
             enforceMobility(hum)
-            -- Bypass pengurang kecepatan cuaca dingin Antartika & anti-speed bawaan game
-            local isSpeedActive = (HubState.Config.PlayerModsEnabled and HubState.Config.PlayerModsList and HubState.Config.PlayerModsList["Speed"]) or (HubState.Config.WalkSpeed and HubState.Config.WalkSpeed > 16)
-            if isSpeedActive and root and hum.MoveDirection.Magnitude > 0 then
-                local desiredSpeed = HubState.Config.WalkSpeed or 32
-                if desiredSpeed > 16 then
-                    local boost = (desiredSpeed - 16)
-                    root.CFrame = root.CFrame + (hum.MoveDirection * (boost * dt))
-                end
-            end
         end
     end
 end)
@@ -773,6 +775,11 @@ end
 Services.RunService.RenderStepped:Connect(function()
     if HubState.Config.Fly and HubState.FlyBV and HubState.FlyBG and Camera then
         local moveDir = Vector3.new(0, 0, 0)
+        local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+        -- Mendukung Mobile Virtual Joystick secara native via hum.MoveDirection!
+        if hum and hum.MoveDirection.Magnitude > 0 then
+            moveDir = Camera.CFrame:VectorToWorldSpace(Camera.CFrame:VectorToObjectSpace(hum.MoveDirection))
+        end
         local uis = Services.UserInputService
         if uis:IsKeyDown(Enum.KeyCode.W) then moveDir = moveDir + Camera.CFrame.LookVector end
         if uis:IsKeyDown(Enum.KeyCode.S) then moveDir = moveDir - Camera.CFrame.LookVector end
@@ -1153,50 +1160,15 @@ end)
 -- 3. GLOBAL GAMEPASS HOOK & MINING MODS ENGINE (LEVEL ULTIMATE DEWA)
 -- ==============================================================================
 
--- 3.0. MarketplaceService & __namecall Remote Interceptor
-local oldNamecall = nil
-local rawFireServer = Instance.new("RemoteEvent").FireServer
-local rawInvokeServer = Instance.new("RemoteFunction").InvokeServer
-
+-- 3.0. MarketplaceService Hook (Client Gamepass Spoofing - 100% Anti-Crash)
 pcall(function()
     local MPS = game:GetService("MarketplaceService")
     if hookmetamethod then
+        local oldNamecall
         oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
             local method = getnamecallmethod()
-            if not checkcaller() then
-                -- 1. Gamepass Check Interception (Client Spoofing)
-                if method == "UserOwnsGamePassAsync" or method == "PlayerOwnsAsset" then
-                    return true
-                end
-
-                -- 2. Mining Remote Hit Multiplier Interception
-                if (method == "FireServer" or method == "InvokeServer") and HubState.Config.MiningModsEnabled then
-                    local sName = (typeof(self) == "Instance" and self.Name or ""):lower()
-                    local isMiningRemote = sName:find("mine") or sName:find("hit") or sName:find("damage") or sName:find("boulder") 
-                        or sName:find("swing") or sName:find("dig") or sName:find("break") or sName:find("ore") or sName:find("strike")
-                        or sName:find("attack") or sName:find("smash")
-
-                    if isMiningRemote then
-                        local pList = HubState.Config.MiningModsList or {}
-                        local mult = 1
-                        if HubState.Config.InstantMine or pList["Ranjau Instan"] or pList["Instant Break"] then
-                            mult = 16
-                        elseif HubState.Config.Power8x or pList["8x Kekuatan"] then
-                            mult = 8
-                        elseif HubState.Config.FastMineHits and HubState.Config.FastMineHits > 1 then
-                            mult = HubState.Config.FastMineHits
-                        end
-
-                        if mult > 1 then
-                            local args = {...}
-                            if method == "FireServer" and self:IsA("RemoteEvent") then
-                                for i = 2, mult do
-                                    pcall(rawFireServer, self, table.unpack(args))
-                                end
-                            end
-                        end
-                    end
-                end
+            if not checkcaller() and (method == "UserOwnsGamePassAsync" or method == "PlayerOwnsAsset") then
+                return true
             end
             return oldNamecall(self, ...)
         end)
@@ -2906,14 +2878,7 @@ Services.RunService.Stepped:Connect(function()
                 if hum.PlatformStand then hum.PlatformStand = false end
                 if hum.Sit then hum.Sit = false end
 
-                for _, child in ipairs(char:GetChildren()) do
-                    if child:IsA("Script") or child:IsA("LocalScript") then
-                        local cn = child.Name:lower()
-                        if cn:find("ragdoll") or cn:find("fall") or cn:find("knockback") or cn:find("trip") or cn:find("stun") or cn:find("slip") then
-                            pcall(function() child.Disabled = true end)
-                        end
-                    end
-                end
+-- Script disabling removed to prevent movement freeze
             end
 
             -- No Fall Damage (Klem Kecepatan Jatuh Sebelum Menyentuh Tanah)
@@ -3111,14 +3076,48 @@ end)
 
 -- 9. USER INTERFACE: BARRAGE HUB (EXACT 1:1 REPLICA)
 -- ==============================================================================
-local OldUI = getSafeUIParent():FindFirstChild("BarrageHubUI")
-if OldUI then OldUI:Destroy() end
+pcall(function()
+    local targets = {}
+    if LocalPlayer and LocalPlayer:FindFirstChildOfClass("PlayerGui") then
+        table.insert(targets, LocalPlayer:FindFirstChildOfClass("PlayerGui"))
+    end
+    if gethui then
+        local ok, h = pcall(gethui)
+        if ok and h then table.insert(targets, h) end
+    end
+    pcall(function() table.insert(targets, Services.CoreGui) end)
+    for _, container in ipairs(targets) do
+        local old = container:FindFirstChild("BarrageHubUI")
+        if old then pcall(function() old:Destroy() end) end
+    end
+end)
 
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "BarrageHubUI"
 ScreenGui.ResetOnSpawn = false
 ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-ScreenGui.Parent = getSafeUIParent()
+ScreenGui.DisplayOrder = 999999
+
+-- Parenting anti-gagal khusus Arceus X & Android 15
+local parentSuccess = false
+local uiTarget = getSafeUIParent()
+if uiTarget then
+    parentSuccess = pcall(function() ScreenGui.Parent = uiTarget end)
+end
+if not parentSuccess or not ScreenGui.Parent then
+    pcall(function()
+        ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui", 5)
+    end)
+end
+
+-- Notifikasi Konfirmasi bahwa UI Berhasil Dimuat
+pcall(function()
+    game:GetService("StarterGui"):SetCore("SendNotification", {
+        Title = "Antigravity Hub v9.6.3",
+        Text = "Menu berhasil dimuat! Tekan tombol 'B' di samping layar.",
+        Duration = 5
+    })
+end)
 
 -- Mobile Floating Button
 local FloatBtn = Instance.new("TextButton")
