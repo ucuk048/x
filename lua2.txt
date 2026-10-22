@@ -4,9 +4,9 @@
 -- ==============================================================================
 
 local HUB_NAME = "Antigravity Hub"
-local HUB_VERSION = "9.6.2"
+local HUB_VERSION = "9.6.3"
 local CONFIG_FILE = "antigravity_hub_config.json"
-local CONFIG_VERSION = "9.6.2"
+local CONFIG_VERSION = "9.6.3"
 local WAYPOINTS_FILE = "antigravity_waypoints.json"
 
 -- 0. INSTANT SAFE RUNNER & UNFREEZE ENGINE (ZERO-LOCKOUT)
@@ -59,16 +59,38 @@ local Services = {
     ProximityPromptService = game:GetService("ProximityPromptService")
 }
 
-local LocalPlayer = Services.Players.LocalPlayer or Services.Players.PlayerAdded:Wait()
-local Camera = workspace.CurrentCamera or workspace:WaitForChild("Camera")
-local Mouse = LocalPlayer:GetMouse()
-local PlayerGui = LocalPlayer:FindFirstChildOfClass("PlayerGui") or Services.CoreGui
+-- Resolusi Aman LocalPlayer tanpa deadlock
+local LocalPlayer = Services.Players.LocalPlayer
+if not LocalPlayer then
+    local t0 = os.clock()
+    repeat
+        task.wait(0.05)
+        LocalPlayer = Services.Players.LocalPlayer
+    until LocalPlayer or (os.clock() - t0 > 3)
+end
+if not LocalPlayer then
+    LocalPlayer = Services.Players:GetPlayers()[1]
+end
 
+local Camera = workspace.CurrentCamera or workspace:FindFirstChildOfClass("Camera")
+local Mouse = LocalPlayer and LocalPlayer:GetMouse()
+
+-- Resolusi UI Parent Khusus Arceus X, Delta & Mobile Android (100% Tampil di Layar)
 local function getSafeUIParent()
-    if gethui then return gethui() end
-    local ok, _ = pcall(function() return Services.CoreGui.Name end)
-    if ok then return Services.CoreGui end
-    return PlayerGui
+    local lp = Services.Players.LocalPlayer or LocalPlayer
+    if lp then
+        local pg = lp:FindFirstChildOfClass("PlayerGui") or lp:FindFirstChild("PlayerGui")
+        if pg then return pg end
+        local ok, wpg = pcall(function() return lp:WaitForChild("PlayerGui", 3) end)
+        if ok and wpg then return wpg end
+    end
+    if gethui then
+        local ok, h = pcall(gethui)
+        if ok and h then return h end
+    end
+    local ok, cg = pcall(function() return Services.CoreGui end)
+    if ok and cg then return cg end
+    return lp and lp:WaitForChild("PlayerGui", 5)
 end
 
 local function tween(object, properties, duration)
@@ -516,9 +538,10 @@ local function applyESP(player)
 
     local function setupChar(char)
         if not char then return end
-        local root = char:WaitForChild("HumanoidRootPart", 5)
-        local hum = char:WaitForChild("Humanoid", 5)
-        if not root or not hum then return end
+        task.spawn(function()
+            local root = char:WaitForChild("HumanoidRootPart", 3)
+            local hum = char:WaitForChild("Humanoid", 3)
+            if not root or not hum then return end
 
         -- Chams
         local highlight = char:FindFirstChild("AgyHighlight") or Instance.new("Highlight")
@@ -564,9 +587,10 @@ local function applyESP(player)
         end)
 
         HubState.EspObjects[player] = { Highlight = highlight, Tag = tag, Label = label, Root = root, Hum = hum, Tracer = tracer }
+        end)
     end
 
-    if player.Character then setupChar(player.Character) end
+    if player.Character then task.spawn(setupChar, player.Character) end
     player.CharacterAdded:Connect(setupChar)
 end
 
@@ -3052,14 +3076,48 @@ end)
 
 -- 9. USER INTERFACE: BARRAGE HUB (EXACT 1:1 REPLICA)
 -- ==============================================================================
-local OldUI = getSafeUIParent():FindFirstChild("BarrageHubUI")
-if OldUI then OldUI:Destroy() end
+pcall(function()
+    local targets = {}
+    if LocalPlayer and LocalPlayer:FindFirstChildOfClass("PlayerGui") then
+        table.insert(targets, LocalPlayer:FindFirstChildOfClass("PlayerGui"))
+    end
+    if gethui then
+        local ok, h = pcall(gethui)
+        if ok and h then table.insert(targets, h) end
+    end
+    pcall(function() table.insert(targets, Services.CoreGui) end)
+    for _, container in ipairs(targets) do
+        local old = container:FindFirstChild("BarrageHubUI")
+        if old then pcall(function() old:Destroy() end) end
+    end
+end)
 
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "BarrageHubUI"
 ScreenGui.ResetOnSpawn = false
 ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-ScreenGui.Parent = getSafeUIParent()
+ScreenGui.DisplayOrder = 999999
+
+-- Parenting anti-gagal khusus Arceus X & Android 15
+local parentSuccess = false
+local uiTarget = getSafeUIParent()
+if uiTarget then
+    parentSuccess = pcall(function() ScreenGui.Parent = uiTarget end)
+end
+if not parentSuccess or not ScreenGui.Parent then
+    pcall(function()
+        ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui", 5)
+    end)
+end
+
+-- Notifikasi Konfirmasi bahwa UI Berhasil Dimuat
+pcall(function()
+    game:GetService("StarterGui"):SetCore("SendNotification", {
+        Title = "Antigravity Hub v9.6.3",
+        Text = "Menu berhasil dimuat! Tekan tombol 'B' di samping layar.",
+        Duration = 5
+    })
+end)
 
 -- Mobile Floating Button
 local FloatBtn = Instance.new("TextButton")
