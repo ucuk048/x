@@ -102,6 +102,7 @@ local HubState = {
         Coins2x = true,             -- 2X KOIN (+2x Koin saat Menjual)
         VIPPerks = true,            -- VIP (+25% Koin & 15% Luck)
         AutoCollect = false,
+        CollectRange = 300,
         AutoSell = false,
         AutoGarden = false,
         AutoRunes = false,
@@ -145,8 +146,14 @@ local HubState = {
         AutoCollectPreset = "Everything",
         AutoMinePreset = "Blatant",
         AutoSellPreset = "Default",
-        AutoGardenPreset = "Rarity > Luck",
+        AutoGardenPreset = "Best",
         GardenAction = "Buy Space, Fill Best",
+        GardenFeatures = {
+            ["Auto Buy Garden Space"] = true,
+            ["Auto Fill Best Crystals"] = true,
+            ["Auto Harvest Mutated Crystals"] = true,
+            ["Prioritize Rarity > Luck"] = true
+        },
         AutoRunesPreset = "Default",
         RuneAction = "Collect & Activate",
         AutoPickaxePreset = "Best Available",
@@ -420,6 +427,65 @@ Services.RunService.RenderStepped:Connect(function()
 end)
 
 -- 7. MOVEMENT ENGINE: NOCLIP, FLY, SPEED, JUMP, BHOP, CLICK TP, SPINBOT
+local function enforceMobility(hum)
+    if not hum or not hum.Parent then return end
+    pcall(function()
+        if HubState.Config.WalkSpeed and HubState.Config.WalkSpeed > 0 and HubState.Config.WalkSpeed ~= 16 then
+            if hum.WalkSpeed ~= HubState.Config.WalkSpeed then
+                hum.WalkSpeed = HubState.Config.WalkSpeed
+            end
+        end
+        if HubState.Config.JumpPower and HubState.Config.JumpPower > 0 and HubState.Config.JumpPower ~= 50 then
+            hum.UseJumpPower = true
+            if hum.JumpPower ~= HubState.Config.JumpPower then
+                hum.JumpPower = HubState.Config.JumpPower
+            end
+        end
+    end)
+end
+
+local function bindHumanoid(hum)
+    if not hum then return end
+    enforceMobility(hum)
+    hum:GetPropertyChangedSignal("WalkSpeed"):Connect(function()
+        if HubState.Config.WalkSpeed and HubState.Config.WalkSpeed > 0 and HubState.Config.WalkSpeed ~= 16 then
+            if hum.WalkSpeed ~= HubState.Config.WalkSpeed then
+                hum.WalkSpeed = HubState.Config.WalkSpeed
+            end
+        end
+    end)
+    hum:GetPropertyChangedSignal("JumpPower"):Connect(function()
+        if HubState.Config.JumpPower and HubState.Config.JumpPower > 0 and HubState.Config.JumpPower ~= 50 then
+            hum.UseJumpPower = true
+            if hum.JumpPower ~= HubState.Config.JumpPower then
+                hum.JumpPower = HubState.Config.JumpPower
+            end
+        end
+    end)
+end
+
+if LocalPlayer.Character then
+    local hum = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+    if hum then bindHumanoid(hum) end
+end
+
+LocalPlayer.CharacterAdded:Connect(function(char)
+    task.wait(0.2)
+    local hum = char:WaitForChild("Humanoid", 5)
+    if hum then
+        bindHumanoid(hum)
+    end
+end)
+
+Services.RunService.Heartbeat:Connect(function()
+    local char = LocalPlayer.Character
+    if char then
+        local hum = char:FindFirstChildOfClass("Humanoid")
+        if hum then
+            enforceMobility(hum)
+        end
+    end
+end)
 Services.RunService.Stepped:Connect(function()
     if HubState.Config.Noclip and LocalPlayer.Character then
         for _, part in ipairs(LocalPlayer.Character:GetDescendants()) do
@@ -733,12 +799,12 @@ task.spawn(function()
         if HubState.Config.PlayerModsEnabled and LocalPlayer.Character then
             local hum = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
             if hum then
-                if HubState.Config.PlayerPreset == "Blatant" then
-                    hum.WalkSpeed = math.max(HubState.Config.WalkSpeed, 100)
-                    hum.JumpPower = math.max(HubState.Config.JumpPower, 150)
-                elseif HubState.Config.PlayerPreset == "Legit" then
-                    hum.WalkSpeed = 32
-                    hum.JumpPower = 70
+                hum.UseJumpPower = true
+                if HubState.Config.WalkSpeed and HubState.Config.WalkSpeed > 0 and HubState.Config.WalkSpeed ~= 16 then
+                    hum.WalkSpeed = HubState.Config.WalkSpeed
+                end
+                if HubState.Config.JumpPower and HubState.Config.JumpPower > 0 and HubState.Config.JumpPower ~= 50 then
+                    hum.JumpPower = HubState.Config.JumpPower
                 end
             end
             HubState.Config.AntiFreeze = true
@@ -755,12 +821,13 @@ task.spawn(function()
         task.wait(0.35)
         if HubState.Config.TeleportCollectEnabled and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
             local myRoot = LocalPlayer.Character.HumanoidRootPart
+            local maxRange = math.min((HubState.Config.CollectRange or 300) * 1.5, 1200)
             for _, item in ipairs(workspace:GetDescendants()) do
                 if item:IsA("TouchTransmitter") and item.Parent and item.Parent:IsA("BasePart") then
                     local pname = item.Parent.Name:lower()
-                    if pname:find("crystal") or pname:find("drop") or pname:find("shard") or pname:find("rune") or pname:find("meteor") or pname:find("coin") then
+                    if pname:find("crystal") or pname:find("drop") or pname:find("shard") or pname:find("rune") or pname:find("meteor") or pname:find("coin") or pname:find("candy") or pname:find("permen") then
                         local dist = (item.Parent.Position - myRoot.Position).Magnitude
-                        if dist > 4 and dist < 80 then
+                        if dist > 4 and dist <= maxRange then
                             local oldCF = myRoot.CFrame
                             myRoot.CFrame = item.Parent.CFrame
                             firetouchinterest(myRoot, item.Parent, 0)
@@ -782,6 +849,12 @@ task.spawn(function()
         task.wait(0.18)
         if HubState.Config.AutoCollect and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
             local myRoot = LocalPlayer.Character.HumanoidRootPart
+            local maxRange = HubState.Config.CollectRange or 300
+            local preset = HubState.Config.AutoCollectPreset or "Everything"
+            if preset == "Everything" then
+                maxRange = math.max(maxRange, 500)
+            end
+
             local searchDirs = {
                 workspace:FindFirstChild("Drops"),
                 workspace:FindFirstChild("Debris"),
@@ -801,15 +874,23 @@ task.spawn(function()
                     for _, item in ipairs(items) do
                         local iname = item.Name:lower()
                         local isDrop = false
-                        for _, kw in ipairs(dropKeywords) do
-                            if iname:find(kw) then isDrop = true break end
+                        if preset == "Crystals Only" then
+                            if iname:find("crystal") or iname:find("gem") or iname:find("shard") then isDrop = true end
+                        elseif preset == "Coins Only" then
+                            if iname:find("coin") or iname:find("permen") or iname:find("candy") then isDrop = true end
+                        elseif preset == "Runes Only" then
+                            if iname:find("rune") then isDrop = true end
+                        else
+                            for _, kw in ipairs(dropKeywords) do
+                                if iname:find(kw) then isDrop = true break end
+                            end
                         end
 
                         if isDrop then
                             local part = item:IsA("BasePart") and item or (item:IsA("Model") and (item.PrimaryPart or item:FindFirstChildWhichIsA("BasePart")))
                             if part then
                                 local dist = (part.Position - myRoot.Position).Magnitude
-                                if dist < 85 then
+                                if dist <= maxRange then
                                     pcall(function()
                                         firetouchinterest(myRoot, part, 0)
                                         firetouchinterest(myRoot, part, 1)
@@ -863,10 +944,28 @@ task.spawn(function()
     end
 end)
 
--- 6. Auto Garden (Tanaman, Bunga & Seeds dengan Prioritas Rarity > Luck Kristal)
-local function getBestGardenSeed()
-    if not LocalPlayer.Backpack then return nil end
-    local seeds = {}
+-- 6. Auto Garden / Crystal Farm (Mine Antarctica Spesifik: Best, Rarity, Luck, Mutation, Value, Weight)
+local function buyGardenSpace()
+    for _, rem in ipairs(Services.ReplicatedStorage:GetDescendants()) do
+        if rem:IsA("RemoteEvent") or rem:IsA("RemoteFunction") then
+            local n = rem.Name:lower()
+            if n:find("buyspace") or n:find("buyslot") or n:find("expandgarden") or n:find("upgradegarden") or n:find("purchaseslot") or (n:find("garden") and (n:find("slot") or n:find("buy") or n:find("space"))) then
+                pcall(function()
+                    if rem:IsA("RemoteEvent") then rem:FireServer() else rem:InvokeServer() end
+                end)
+            end
+        end
+    end
+end
+HubState.BuyGardenSpace = buyGardenSpace
+
+local function getBestGardenCrystal(sortMode)
+    sortMode = sortMode or HubState.Config.AutoGardenPreset or "Best"
+    local containers = {}
+    if LocalPlayer.Backpack then table.insert(containers, LocalPlayer.Backpack) end
+    if LocalPlayer.Character then table.insert(containers, LocalPlayer.Character) end
+
+    local crystals = {}
     local rarityScores = {
         zenith = 100000,
         transcendent = 60000,
@@ -880,95 +979,275 @@ local function getBestGardenSeed()
         epic = 2500,
         rare = 1200,
         uncommon = 500,
-        common = 100,
-        crystal = 850,
-        luck = 700,
-        fortune = 600
+        common = 100
     }
-    for _, item in ipairs(LocalPlayer.Backpack:GetChildren()) do
-        local iname = item.Name:lower()
-        if iname:find("seed") or iname:find("benih") or iname:find("flower") or iname:find("plant") then
-            local score = 100
-            for rk, rv in pairs(rarityScores) do
-                if iname:find(rk) then
-                    score = score + rv
+
+    local mutationKeywords = {
+        "aurora", "blood moon", "blood", "frozen", "radiant", "gilded",
+        "void", "cosmic", "shadow", "mutation", "mutated", "shiny", "spectral",
+        "corrupted", "rainbow", "electric", "nebula", "abyssal"
+    }
+
+    local ignoredKeywords = {
+        "pickaxe", "beliung", "axe", "radar", "bomb", "dynamite", "dinamit",
+        "potion", "jetpack", "backpack", "ransel", "compass", "lamp"
+    }
+
+    for _, container in ipairs(containers) do
+        for _, item in ipairs(container:GetChildren()) do
+            local iname = item.Name:lower()
+
+            -- Pastikan bukan utility tools/pickaxe
+            local isIgnored = false
+            for _, ign in ipairs(ignoredKeywords) do
+                if iname:find(ign) then
+                    isIgnored = true
                     break
                 end
             end
-            -- Prioritas sekunder: Luck dari Kristal
-            if iname:find("luck") or iname:find("fortune") or iname:find("kristal") or iname:find("crystal") or iname:find("hoki") then
-                score = score + 450
+
+            if not isIgnored then
+                local isCrystal = false
+                local rarityScore = 0
+
+                for rk, rv in pairs(rarityScores) do
+                    if iname:find(rk) then
+                        isCrystal = true
+                        if rv > rarityScore then
+                            rarityScore = rv
+                        end
+                    end
+                end
+
+                if iname:find("crystal") or iname:find("kristal") or iname:find("shard") or iname:find("gem")
+                   or iname:find("ore") or iname:find("emerald") or iname:find("ruby") or iname:find("sapphire")
+                   or iname:find("diamond") or iname:find("berlian") or iname:find("obsidian")
+                   or iname:find("topaz") or iname:find("amethyst") then
+                    isCrystal = true
+                    rarityScore = rarityScore + 200
+                end
+
+                if isCrystal then
+                    local luckBonus = 0
+                    if iname:find("luck") or iname:find("fortune") or iname:find("hoki") or iname:find("keberuntungan") then
+                        luckBonus = 800
+                    end
+                    pcall(function()
+                        local luckVal = item:GetAttribute("Luck") or item:GetAttribute("LuckMultiplier")
+                                      or (item:FindFirstChild("Luck") and item.Luck.Value)
+                                      or (item:FindFirstChild("Multiplier") and item.Multiplier.Value)
+                        if type(luckVal) == "number" then
+                            luckBonus = luckBonus + math.floor(luckVal * 100)
+                        end
+                    end)
+
+                    local mutationBonus = 0
+                    for _, mut in ipairs(mutationKeywords) do
+                        if iname:find(mut) then
+                            mutationBonus = mutationBonus + 25000
+                            break
+                        end
+                    end
+                    pcall(function()
+                        if item:GetAttribute("Mutation") or item:GetAttribute("IsMutated") or item:FindFirstChild("Mutation") then
+                            mutationBonus = mutationBonus + 25000
+                        end
+                    end)
+
+                    local valueScore = 100
+                    pcall(function()
+                        local val = item:GetAttribute("Value") or item:GetAttribute("Price") or (item:FindFirstChild("Value") and item.Value.Value)
+                        if type(val) == "number" then valueScore = val end
+                    end)
+
+                    local weightScore = 10
+                    pcall(function()
+                        local w = item:GetAttribute("Weight") or item:GetAttribute("Berat") or (item:FindFirstChild("Weight") and item.Weight.Value)
+                        if type(w) == "number" then weightScore = w end
+                    end)
+
+                    -- Hitung skor berdasarkan mode sortir Mine Antarctica (Barrage Hub Specification)
+                    local finalScore = 0
+                    if sortMode == "Rarity" then
+                        finalScore = rarityScore * 10 + luckBonus
+                    elseif sortMode == "Luck" then
+                        finalScore = luckBonus * 100 + rarityScore
+                    elseif sortMode == "Mutation" then
+                        finalScore = mutationBonus * 10 + rarityScore + luckBonus
+                    elseif sortMode == "Value" then
+                        finalScore = valueScore + (rarityScore * 2)
+                    elseif sortMode == "Weight" then
+                        finalScore = weightScore * 100 + rarityScore
+                    else -- "Best" (Default: Rarity > Mutation > Luck > Value)
+                        finalScore = rarityScore + mutationBonus + luckBonus + (valueScore / 100)
+                    end
+
+                    table.insert(crystals, {item = item, score = finalScore, name = item.Name})
+                end
             end
-            table.insert(seeds, {item = item, score = score})
         end
     end
-    table.sort(seeds, function(a, b) return a.score > b.score end)
-    return seeds[1] and seeds[1].item or nil
+
+    table.sort(crystals, function(a, b) return a.score > b.score end)
+    return crystals[1] and crystals[1].item or nil
 end
+local getBestGardenSeed = getBestGardenCrystal
+
+local function performAutoGarden(action)
+    action = action or "all"
+    if not LocalPlayer.Character or not LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then return end
+    local myRoot = LocalPlayer.Character.HumanoidRootPart
+    local bestCrystal = getBestGardenCrystal(HubState.Config.AutoGardenPreset)
+
+    -- 1. Beli Ruang Kebun jika tindakan mengizinkan (Mine Antarctica Garden Space Expansion)
+    if action == "all" or action == "buyspace" or HubState.Config.GardenAction == "Buy Space, Fill Best" or HubState.Config.GardenAction == "Buy Garden Space Only" then
+        buyGardenSpace()
+        if action == "buyspace" or HubState.Config.GardenAction == "Buy Garden Space Only" then
+            return
+        end
+    end
+
+    -- Auto equip kristal terbaik saat aksi penanaman
+    if (action == "all" or action == "plant") and bestCrystal and bestCrystal:IsA("Tool") and bestCrystal.Parent == LocalPlayer.Backpack then
+        pcall(function()
+            local hum = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+            if hum then hum:EquipTool(bestCrystal) end
+        end)
+    end
+
+    -- 2. Panggil RemoteEvent / RemoteFunction Crystal Garden (Harvest & Plant)
+    for _, rem in ipairs(Services.ReplicatedStorage:GetDescendants()) do
+        if rem:IsA("RemoteEvent") or rem:IsA("RemoteFunction") then
+            local n = rem.Name:lower()
+            if n:find("garden") or n:find("crystalgarden") or n:find("crystal") or n:find("kristal")
+               or n:find("harvest") or n:find("plant") or n:find("place") or n:find("flower")
+               or n:find("seed") or n:find("kebun") or n:find("panen") or n:find("tanam")
+               or n:find("deposit") or n:find("withdraw") then
+                pcall(function()
+                    if rem:IsA("RemoteEvent") then
+                        if (action == "all" or action == "plant") and bestCrystal then
+                            rem:FireServer(bestCrystal)
+                            rem:FireServer("Plant", bestCrystal)
+                            rem:FireServer("Place", bestCrystal)
+                            rem:FireServer("Deposit", bestCrystal)
+                            rem:FireServer("PlantCrystal", bestCrystal)
+                            rem:FireServer("PlaceCrystal", bestCrystal)
+                            rem:FireServer(bestCrystal.Name)
+                        end
+                        if (action == "all" or action == "harvest") then
+                            rem:FireServer()
+                            rem:FireServer("HarvestAll")
+                            rem:FireServer("Harvest")
+                            rem:FireServer("HarvestCrystal")
+                            rem:FireServer("CollectGarden")
+                            rem:FireServer("TakeAll")
+                            rem:FireServer("ClearGarden")
+                        end
+                    else
+                        if (action == "all" or action == "plant") and bestCrystal then
+                            rem:InvokeServer(bestCrystal)
+                            rem:InvokeServer("Plant", bestCrystal)
+                            rem:InvokeServer("Place", bestCrystal)
+                        end
+                        if (action == "all" or action == "harvest") then
+                            rem:InvokeServer()
+                            rem:InvokeServer("Harvest")
+                        end
+                    end
+                end)
+            end
+        end
+    end
+
+    -- 3. Interaksi dengan petak kebun kristal (TouchTransmitter, ProximityPrompt & ClickDetector)
+    local searchGardenDirs = {
+        workspace:FindFirstChild("CrystalGarden"),
+        workspace:FindFirstChild("Crystal Garden"),
+        workspace:FindFirstChild("CrystalFarm"),
+        workspace:FindFirstChild("Crystal Farm"),
+        workspace:FindFirstChild("CrystalPlots"),
+        workspace:FindFirstChild("Crystal Plots"),
+        workspace:FindFirstChild("CrystalBeds"),
+        workspace:FindFirstChild("Garden"),
+        workspace:FindFirstChild("Gardens"),
+        workspace:FindFirstChild("Farms"),
+        workspace:FindFirstChild("Plants"),
+        workspace:FindFirstChild("Crops"),
+        workspace:FindFirstChild("Plots"),
+        workspace:FindFirstChild("Kebun")
+    }
+
+    for _, child in ipairs(workspace:GetChildren()) do
+        local cname = child.Name:lower()
+        if cname:find("garden") or cname:find("kebun") or (cname:find("crystal") and (cname:find("plot") or cname:find("farm") or cname:find("bed") or cname:find("stand"))) then
+            local exists = false
+            for _, gf in ipairs(searchGardenDirs) do
+                if gf == child then exists = true break end
+            end
+            if not exists then table.insert(searchGardenDirs, child) end
+        end
+    end
+
+    local plots = {}
+    for _, gardenFolder in ipairs(searchGardenDirs) do
+        if gardenFolder then
+            for _, plot in ipairs(gardenFolder:GetDescendants()) do
+                if plot:IsA("TouchTransmitter") and plot.Parent and plot.Parent:IsA("BasePart") then
+                    local pname = plot.Parent.Name:lower()
+                    local priority = 10
+                    if pname:find("zenith") then priority = 10000
+                    elseif pname:find("transcendent") or pname:find("celestial") then priority = 6000
+                    elseif pname:find("godly") or pname:find("secret") then priority = 3500
+                    elseif pname:find("exotic") then priority = 2000
+                    elseif pname:find("mythic") then priority = 1000
+                    elseif pname:find("legendary") then priority = 500
+                    elseif pname:find("epic") then priority = 250
+                    elseif pname:find("rare") then priority = 120
+                    elseif pname:find("uncommon") then priority = 50
+                    elseif pname:find("common") then priority = 15
+                    elseif pname:find("crystal") or pname:find("kristal") or pname:find("luck") then priority = 450
+                    end
+                    table.insert(plots, {part = plot.Parent, p = priority})
+                end
+
+                if plot:IsA("ProximityPrompt") then
+                    pcall(function()
+                        if fireproximityprompt then
+                            fireproximityprompt(plot, 0)
+                        end
+                    end)
+                end
+
+                if plot:IsA("ClickDetector") then
+                    pcall(function()
+                        if fireclickdetector then
+                            fireclickdetector(plot)
+                        end
+                    end)
+                end
+            end
+        end
+    end
+
+    table.sort(plots, function(a, b) return a.p > b.p end)
+    for _, pData in ipairs(plots) do
+        pcall(function()
+            firetouchinterest(myRoot, pData.part, 0)
+            firetouchinterest(myRoot, pData.part, 1)
+            if bestCrystal and bestCrystal:FindFirstChild("Handle") then
+                firetouchinterest(bestCrystal.Handle, pData.part, 0)
+                firetouchinterest(bestCrystal.Handle, pData.part, 1)
+            end
+        end)
+    end
+end
+HubState.PerformGarden = performAutoGarden
 
 task.spawn(function()
     while true do
         task.wait(1.8)
-        if HubState.Config.AutoGarden and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
-            local myRoot = LocalPlayer.Character.HumanoidRootPart
-            local bestSeed = getBestGardenSeed()
-
-            -- Panggil event garden dengan prioritas Rarity > Luck Kristal
-            for _, rem in ipairs(Services.ReplicatedStorage:GetDescendants()) do
-                if rem:IsA("RemoteEvent") or rem:IsA("RemoteFunction") then
-                    local n = rem.Name:lower()
-                    if n:find("garden") or n:find("harvest") or n:find("plant") or n:find("flower") or n:find("seed") then
-                        pcall(function()
-                            if rem:IsA("RemoteEvent") then
-                                if bestSeed and (n:find("plant") or n:find("seed")) then
-                                    rem:FireServer(bestSeed)
-                                    rem:FireServer("Plant", bestSeed)
-                                else
-                                    rem:FireServer()
-                                end
-                            else
-                                if bestSeed and (n:find("plant") or n:find("seed")) then
-                                    rem:InvokeServer(bestSeed)
-                                else
-                                    rem:InvokeServer()
-                                end
-                            end
-                        end)
-                    end
-                end
-            end
-
-            -- Touch farm plots dengan prioritas petak langka/kristal
-            local gardenFolder = workspace:FindFirstChild("Garden") or workspace:FindFirstChild("Farms") or workspace:FindFirstChild("Plants") or workspace:FindFirstChild("Crops")
-            if gardenFolder then
-                local plots = {}
-                for _, plot in ipairs(gardenFolder:GetDescendants()) do
-                    if plot:IsA("TouchTransmitter") and plot.Parent and plot.Parent:IsA("BasePart") then
-                        local pname = plot.Parent.Name:lower()
-                        local priority = 10
-                        if pname:find("zenith") then priority = 10000
-                        elseif pname:find("transcendent") or pname:find("celestial") then priority = 6000
-                        elseif pname:find("godly") or pname:find("secret") then priority = 3500
-                        elseif pname:find("exotic") then priority = 2000
-                        elseif pname:find("mythic") then priority = 1000
-                        elseif pname:find("legendary") then priority = 500
-                        elseif pname:find("epic") then priority = 250
-                        elseif pname:find("rare") then priority = 120
-                        elseif pname:find("uncommon") then priority = 50
-                        elseif pname:find("common") then priority = 15
-                        elseif pname:find("crystal") or pname:find("luck") then priority = 450
-                        end
-                        table.insert(plots, {part = plot.Parent, p = priority})
-                    end
-                end
-                table.sort(plots, function(a, b) return a.p > b.p end)
-                for _, pData in ipairs(plots) do
-                    pcall(function()
-                        firetouchinterest(myRoot, pData.part, 0)
-                        firetouchinterest(myRoot, pData.part, 1)
-                    end)
-                end
-            end
+        if HubState.Config.AutoGarden then
+            performAutoGarden("all")
         end
     end
 end)
@@ -2247,14 +2526,26 @@ end)
 addPresetDropdown(CardSell, "Sell Target", {"Pedagang Base Camp", "Pedagang Terdekat", "Teleport Jual & Balik"}, "Pedagang Base Camp", function(v) end)
 
 -- 3. TAB: AUTO COLLECT (1:1 SESUAI SCREENSHOT)
-local CardCol, StatusCol = createCard(AutoCollectPage, "Auto Collect", "[WAITING] Awaiting Drops In 25 Studs")
+local CardCol, StatusCol = createCard(AutoCollectPage, "Auto Collect", string.format("[IDLE] Range %d Studs", HubState.Config.CollectRange or 300))
 addPresetDropdown(CardCol, "Preset", {"Everything", "Crystals Only", "Coins Only", "Runes Only"}, HubState.Config.AutoCollectPreset, function(v)
     HubState.Config.AutoCollectPreset = v
+    if HubState.Config.AutoCollect then
+        StatusCol.Text = string.format("[ACTIVE] %s | Range %d Studs", v, HubState.Config.CollectRange or 300)
+    end
 end)
 addToggle(CardCol, "Enable Auto Collect", HubState.Config.AutoCollect, function(enabled)
     HubState.Config.AutoCollect = enabled
-    StatusCol.Text = enabled and "[WAITING] Awaiting Drops In 25 Studs" or "[IDLE]"
+    local curRange = HubState.Config.CollectRange or 300
+    StatusCol.Text = enabled and string.format("[ACTIVE] Collecting within %d Studs", curRange) or string.format("[IDLE] Range %d Studs", curRange)
     StatusCol.TextColor3 = enabled and Color3.fromRGB(74, 222, 128) or Color3.fromRGB(200, 180, 185)
+end)
+addSlider(CardCol, "Collect Range (Studs)", 50, 1000, HubState.Config.CollectRange or 300, function(val)
+    HubState.Config.CollectRange = val
+    if HubState.Config.AutoCollect then
+        StatusCol.Text = string.format("[ACTIVE] Collecting within %d Studs", val)
+    else
+        StatusCol.Text = string.format("[IDLE] Range %d Studs", val)
+    end
 end)
 
 local CardTPCol, StatusTPCol = createCard(AutoCollectPage, "Teleport Collect", "[IDLE]")
@@ -2263,6 +2554,9 @@ addToggle(CardTPCol, "Enable Teleport Collect", HubState.Config.TeleportCollectE
     HubState.Config.TeleportCollectEnabled = enabled
     StatusTPCol.Text = enabled and "[ACTIVE] Teleporting to Drops" or "[IDLE]"
     StatusTPCol.TextColor3 = enabled and Color3.fromRGB(74, 222, 128) or Color3.fromRGB(200, 180, 185)
+end)
+addSlider(CardTPCol, "Max TP Range (Studs)", 100, 1500, math.floor((HubState.Config.CollectRange or 300) * 1.5), function(val)
+    HubState.Config.CollectRange = math.floor(val / 1.5)
 end)
 
 -- 4. TAB: MOVEMENT
@@ -2274,6 +2568,14 @@ addPresetDropdown(CardMove, "Preset", {"Blatant", "Legit", "Custom"}, "Blatant",
     elseif v == "Legit" then
         HubState.Config.WalkSpeed = 32
         HubState.Config.JumpPower = 70
+    end
+    if LocalPlayer.Character then
+        local hum = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+        if hum then
+            hum.UseJumpPower = true
+            hum.WalkSpeed = HubState.Config.WalkSpeed
+            hum.JumpPower = HubState.Config.JumpPower
+        end
     end
 end)
 addToggle(CardMove, "Enable Movement Mods", true, function(enabled)
@@ -2289,33 +2591,105 @@ addMultiSelectDropdown(CardMove, "Movement Features", {"Speed", "Jump", "Fly", "
 end)
 addSlider(CardMove, "WalkSpeed", 16, 300, HubState.Config.WalkSpeed, function(val)
     HubState.Config.WalkSpeed = val
-    if LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid") then
-        LocalPlayer.Character:FindFirstChildOfClass("Humanoid").WalkSpeed = val
+    if LocalPlayer.Character then
+        local hum = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+        if hum then hum.WalkSpeed = val end
     end
 end)
 addSlider(CardMove, "JumpPower", 50, 400, HubState.Config.JumpPower, function(val)
     HubState.Config.JumpPower = val
-    if LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid") then
-        LocalPlayer.Character:FindFirstChildOfClass("Humanoid").JumpPower = val
+    if LocalPlayer.Character then
+        local hum = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+        if hum then
+            hum.UseJumpPower = true
+            hum.JumpPower = val
+        end
     end
 end)
 
--- 5. TAB: AUTO GARDEN (1:1 SESUAI SCREENSHOT)
+-- 5. TAB: AUTO GARDEN (MINE ANTARCTICA CRYSTAL FARM - 1:1 BARRAGE HUB SPEC)
 local CardGarden, StatusGarden = createCard(AutoGardenPage, "Auto Garden", "[IDLE]")
-addPresetDropdown(CardGarden, "Preset", {"Rarity > Luck", "Keberuntungan", "Cepat", "Default"}, HubState.Config.AutoGardenPreset or "Rarity > Luck", function(v)
+addPresetDropdown(CardGarden, "Preset", {"Best", "Rarity", "Luck", "Mutation", "Value", "Weight"}, HubState.Config.AutoGardenPreset or "Best", function(v)
     HubState.Config.AutoGardenPreset = v
     if HubState.Config.AutoGarden then
-        StatusGarden.Text = "[ACTIVE] Farming Garden (" .. v .. ")"
+        StatusGarden.Text = "[ACTIVE] Farming Kristal (" .. v .. ")"
     end
 end)
 addToggle(CardGarden, "Enable Auto Garden", HubState.Config.AutoGarden, function(enabled)
     HubState.Config.AutoGarden = enabled
-    local currentPreset = HubState.Config.AutoGardenPreset or "Rarity > Luck"
-    StatusGarden.Text = enabled and ("[ACTIVE] Farming Garden (" .. currentPreset .. ")") or "[IDLE]"
+    local currentPreset = HubState.Config.AutoGardenPreset or "Best"
+    StatusGarden.Text = enabled and ("[ACTIVE] Farming Kristal (" .. currentPreset .. ")") or "[IDLE]"
     StatusGarden.TextColor3 = enabled and Color3.fromRGB(74, 222, 128) or Color3.fromRGB(200, 180, 185)
 end)
-addPresetDropdown(CardGarden, "Garden Actions", {"Buy Space, Fill Best", "Harvest Only", "Plant Only", "Full Auto"}, HubState.Config.GardenAction, function(v)
+addButton(CardGarden, "Auto Garden Now", "Garden Now", function()
+    if performAutoGarden then
+        performAutoGarden("all")
+    elseif HubState.PerformGarden then
+        HubState.PerformGarden("all")
+    end
+    StatusGarden.Text = "[INSTANT] Auto Garden Executed!"
+    StatusGarden.TextColor3 = Color3.fromRGB(74, 222, 128)
+    task.delay(1.5, function()
+        local currentPreset = HubState.Config.AutoGardenPreset or "Best"
+        StatusGarden.Text = HubState.Config.AutoGarden and ("[ACTIVE] Farming Kristal (" .. currentPreset .. ")") or "[IDLE]"
+        StatusGarden.TextColor3 = HubState.Config.AutoGarden and Color3.fromRGB(74, 222, 128) or Color3.fromRGB(200, 180, 185)
+    end)
+end)
+addButton(CardGarden, "Buy Garden Space", "Buy Space", function()
+    if buyGardenSpace then
+        buyGardenSpace()
+    elseif HubState.BuyGardenSpace then
+        HubState.BuyGardenSpace()
+    end
+    StatusGarden.Text = "[INSTANT] Buy Space Triggered!"
+    StatusGarden.TextColor3 = Color3.fromRGB(74, 222, 128)
+    task.delay(1.5, function()
+        local currentPreset = HubState.Config.AutoGardenPreset or "Best"
+        StatusGarden.Text = HubState.Config.AutoGarden and ("[ACTIVE] Farming Kristal (" .. currentPreset .. ")") or "[IDLE]"
+        StatusGarden.TextColor3 = HubState.Config.AutoGarden and Color3.fromRGB(74, 222, 128) or Color3.fromRGB(200, 180, 185)
+    end)
+end)
+addButton(CardGarden, "Harvest All Crystals", "Harvest Now", function()
+    if performAutoGarden then
+        performAutoGarden("harvest")
+    elseif HubState.PerformGarden then
+        HubState.PerformGarden("harvest")
+    end
+    StatusGarden.Text = "[INSTANT] Harvest All Executed!"
+    StatusGarden.TextColor3 = Color3.fromRGB(74, 222, 128)
+    task.delay(1.5, function()
+        local currentPreset = HubState.Config.AutoGardenPreset or "Best"
+        StatusGarden.Text = HubState.Config.AutoGarden and ("[ACTIVE] Farming Kristal (" .. currentPreset .. ")") or "[IDLE]"
+        StatusGarden.TextColor3 = HubState.Config.AutoGarden and Color3.fromRGB(74, 222, 128) or Color3.fromRGB(200, 180, 185)
+    end)
+end)
+addButton(CardGarden, "Plant Best Crystal", "Plant Now", function()
+    if performAutoGarden then
+        performAutoGarden("plant")
+    elseif HubState.PerformGarden then
+        HubState.PerformGarden("plant")
+    end
+    StatusGarden.Text = "[INSTANT] Plant Best Crystal Executed!"
+    StatusGarden.TextColor3 = Color3.fromRGB(74, 222, 128)
+    task.delay(1.5, function()
+        local currentPreset = HubState.Config.AutoGardenPreset or "Best"
+        StatusGarden.Text = HubState.Config.AutoGarden and ("[ACTIVE] Farming Kristal (" .. currentPreset .. ")") or "[IDLE]"
+        StatusGarden.TextColor3 = HubState.Config.AutoGarden and Color3.fromRGB(74, 222, 128) or Color3.fromRGB(200, 180, 185)
+    end)
+end)
+addPresetDropdown(CardGarden, "Garden Actions", {"Buy Space, Fill Best", "Fill Garden Only", "Buy Garden Space Only", "Harvest / Clear Garden"}, HubState.Config.GardenAction, function(v)
     HubState.Config.GardenAction = v
+end)
+local gardenDict = {
+    ["Auto Buy Garden Space"] = true,
+    ["Auto Fill Best Crystals"] = true,
+    ["Auto Harvest Mutated Crystals"] = true,
+    ["Prioritize Rarity > Luck"] = true
+}
+addMultiSelectDropdown(CardGarden, "Garden Features", {
+    "Auto Buy Garden Space", "Auto Fill Best Crystals", "Auto Harvest Mutated Crystals", "Prioritize Rarity > Luck"
+}, gardenDict, function(r)
+    HubState.Config.GardenFeatures = r
 end)
 
 -- 6. TAB: AUTO RUNES
@@ -2401,6 +2775,14 @@ addPresetDropdown(CardPlayerMods, "Preset", {"Blatant", "Legit", "Custom"}, HubS
         HubState.Config.AntiFreeze = true
         HubState.Config.NoFallDamage = true
     end
+    if LocalPlayer.Character then
+        local hum = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+        if hum then
+            hum.UseJumpPower = true
+            hum.WalkSpeed = HubState.Config.WalkSpeed
+            hum.JumpPower = HubState.Config.JumpPower
+        end
+    end
 end)
 addToggle(CardPlayerMods, "Enable Player Mods", HubState.Config.PlayerModsEnabled, function(enabled)
     HubState.Config.PlayerModsEnabled = enabled
@@ -2418,8 +2800,23 @@ addMultiSelectDropdown(CardPlayerMods, "Player Mods", {
     HubState.Config.AntiFreeze = res["Anti Freeze"]
     HubState.Config.NoFallDamage = res["No Fall Damage"]
 end)
-addSlider(CardPlayerMods, "Custom Speed", 16, 300, HubState.Config.WalkSpeed, function(v) HubState.Config.WalkSpeed = v end)
-addSlider(CardPlayerMods, "Custom Jump", 50, 400, HubState.Config.JumpPower, function(v) HubState.Config.JumpPower = v end)
+addSlider(CardPlayerMods, "Custom Speed", 16, 300, HubState.Config.WalkSpeed, function(v)
+    HubState.Config.WalkSpeed = v
+    if LocalPlayer.Character then
+        local hum = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+        if hum then hum.WalkSpeed = v end
+    end
+end)
+addSlider(CardPlayerMods, "Custom Jump", 50, 400, HubState.Config.JumpPower, function(v)
+    HubState.Config.JumpPower = v
+    if LocalPlayer.Character then
+        local hum = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+        if hum then
+            hum.UseJumpPower = true
+            hum.JumpPower = v
+        end
+    end
+end)
 
 -- 12. TAB: MINING MODS (1:1 SESUAI SCREENSHOT)
 local CardMiningMods, StatusMiningMods = createCard(MiningModsPage, "Mining Mods", "[ACTIVE] 9 Mods | Swing 0.09s")
