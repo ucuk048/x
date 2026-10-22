@@ -72,6 +72,7 @@ local HubState = {
         EspHealth = true,
         EspTracers = false,
         EspTeamCheck = false,
+        EspRange = 1000,
         -- Movement & Physics
         WalkSpeed = 16,
         JumpPower = 50,
@@ -90,7 +91,48 @@ local HubState = {
         FastMine = false,
         FastMineHits = 3,
         OrePriority = true,
+        OrePriorityTier = "Zenith & Exotic+",
+        MineTargets = {
+            ["Zenith"] = true,
+            ["Transcendent"] = true,
+            ["Celestial"] = true,
+            ["Divine"] = true,
+            ["Godly"] = true,
+            ["Secret"] = true,
+            ["Exotic"] = true,
+            ["Mythic"] = true,
+            ["Legendary"] = true,
+            ["Epic"] = true,
+            ["Rare"] = true,
+            ["Uncommon"] = true,
+            ["Common"] = true,
+            ["Boulders"] = true,
+            ["Meteors"] = true
+        },
+        -- Mine Antarctica Toko Gamepass Perks (100% Unlocked)
+        Power8x = true,             -- 8X KEKUATAN (+8x Damage Kristal)
+        InstantMine = true,          -- RANJAU INSTAN (1-Click Instant Break)
+        CarryWeight4x = true,       -- X4 BERAT YANG DIBAWA (+4x Kapasitas Ransel)
+        FastDig2x = true,           -- 2X PENGGALIAN CEPAT (+2x Kecepatan Gali)
+        Luck2x = true,              -- 2X KEBERUNTUNGAN (+2x Luck Penggalian)
+        Luck4x = true,              -- 4X KEBERUNTUNGAN (+4x Luck Penggalian)
+        Crystal2x = true,           -- X2 KRISTAL (+2x Kristal yang Diangkat)
+        Crystals2x = true,          -- Alias
+        Coins2x = true,             -- 2X KOIN (+2x Koin saat Menjual)
+        VIPPerks = true,            -- VIP (+25% Koin & 15% Luck)
         AutoCollect = false,
+        CollectRange = 300,
+        CollectTargets = {
+            ["Crystals"] = true,
+            ["Ores"] = true,
+            ["Boulders"] = true,
+            ["Coins"] = true,
+            ["Candy / Permen"] = true,
+            ["Runes"] = true,
+            ["Chests / Crates"] = true,
+            ["Meteors"] = true,
+            ["Shards"] = true
+        },
         AutoSell = false,
         AutoGarden = false,
         AutoRunes = false,
@@ -104,9 +146,17 @@ local HubState = {
         NoFallDamage = true,
         CrystalEsp = false,
         -- Barrage UI & Preset States (1:1 Screenshot Exact)
-        MiningModsEnabled = false,
+        MiningModsEnabled = true,
         MiningPreset = "Blatant",
         MiningModsList = {
+            ["8x Kekuatan"] = true,
+            ["Ranjau Instan"] = true,
+            ["x4 Berat Dibawa"] = true,
+            ["2x Penggalian Cepat"] = true,
+            ["2x Keberuntungan"] = true,
+            ["4x Keberuntungan"] = true,
+            ["x2 Kristal"] = true,
+            ["Tidak Ada Kerusakan Jatuh"] = true,
             ["Anti Ragdoll"] = true,
             ["Dig While Mining"] = true,
             ["Instant Break"] = true,
@@ -121,12 +171,13 @@ local HubState = {
         PlayerPreset = "Blatant",
         PlayerModsList = {
             ["Speed"] = true,
-            ["Fly"] = false,
-            ["Noclip"] = false,
             ["Jump Boost"] = true,
-            ["Infinite Jetpack"] = true,
+            ["Anti Ragdoll"] = true,
             ["Anti Freeze"] = true,
             ["No Fall Damage"] = true,
+            ["Infinite Jetpack"] = true,
+            ["Noclip"] = false,
+            ["Fly"] = false,
             ["SpinBot"] = false,
             ["Click TP"] = false
         },
@@ -134,8 +185,15 @@ local HubState = {
         AutoCollectPreset = "Everything",
         AutoMinePreset = "Blatant",
         AutoSellPreset = "Default",
-        AutoGardenPreset = "Rarity > Luck",
+        SellTarget = "Pedagang Base Camp",
+        AutoGardenPreset = "Best",
         GardenAction = "Buy Space, Fill Best",
+        GardenFeatures = {
+            ["Auto Buy Garden Space"] = true,
+            ["Auto Fill Best Crystals"] = true,
+            ["Auto Harvest Mutated Crystals"] = true,
+            ["Prioritize Rarity > Luck"] = true
+        },
         AutoRunesPreset = "Default",
         RuneAction = "Collect & Activate",
         AutoPickaxePreset = "Best Available",
@@ -409,6 +467,74 @@ Services.RunService.RenderStepped:Connect(function()
 end)
 
 -- 7. MOVEMENT ENGINE: NOCLIP, FLY, SPEED, JUMP, BHOP, CLICK TP, SPINBOT
+local function enforceMobility(hum)
+    if not hum or not hum.Parent then return end
+    pcall(function()
+        local s = HubState.Config.WalkSpeed
+        if s and s > 0 and hum.WalkSpeed ~= s then
+            hum.WalkSpeed = s
+        end
+        local j = HubState.Config.JumpPower
+        if j and j > 0 then
+            hum.UseJumpPower = true
+            if hum.JumpPower ~= j then
+                hum.JumpPower = j
+            end
+        end
+    end)
+end
+
+local function bindHumanoid(hum)
+    if not hum then return end
+    enforceMobility(hum)
+    hum:GetPropertyChangedSignal("WalkSpeed"):Connect(function()
+        local s = HubState.Config.WalkSpeed
+        if s and s > 0 and hum.WalkSpeed ~= s then
+            hum.WalkSpeed = s
+        end
+    end)
+    hum:GetPropertyChangedSignal("JumpPower"):Connect(function()
+        local j = HubState.Config.JumpPower
+        if j and j > 0 then
+            hum.UseJumpPower = true
+            if hum.JumpPower ~= j then
+                hum.JumpPower = j
+            end
+        end
+    end)
+end
+
+if LocalPlayer.Character then
+    local hum = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+    if hum then bindHumanoid(hum) end
+end
+
+LocalPlayer.CharacterAdded:Connect(function(char)
+    task.wait(0.2)
+    local hum = char:WaitForChild("Humanoid", 5)
+    if hum then
+        bindHumanoid(hum)
+    end
+end)
+
+Services.RunService.Heartbeat:Connect(function(dt)
+    local char = LocalPlayer.Character
+    if char then
+        local hum = char:FindFirstChildOfClass("Humanoid")
+        local root = char:FindFirstChild("HumanoidRootPart")
+        if hum then
+            enforceMobility(hum)
+            -- Bypass pengurang kecepatan cuaca dingin Antartika & anti-speed bawaan game
+            if root and hum.MoveDirection.Magnitude > 0 then
+                local desiredSpeed = HubState.Config.WalkSpeed or 16
+                if desiredSpeed > 16 then
+                    local boost = (desiredSpeed - 16)
+                    root.CFrame = root.CFrame + (hum.MoveDirection * (boost * dt))
+                end
+            end
+        end
+    end
+end)
 Services.RunService.Stepped:Connect(function()
     if HubState.Config.Noclip and LocalPlayer.Character then
         for _, part in ipairs(LocalPlayer.Character:GetDescendants()) do
@@ -420,9 +546,18 @@ Services.RunService.Stepped:Connect(function()
 end)
 
 Services.UserInputService.JumpRequest:Connect(function()
-    if HubState.Config.InfJump and LocalPlayer.Character then
+    if LocalPlayer.Character then
         local hum = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
-        if hum then hum:ChangeState(Enum.HumanoidStateType.Jumping) end
+        local root = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+        if hum then
+            if HubState.Config.InfJump then
+                hum:ChangeState(Enum.HumanoidStateType.Jumping)
+            end
+            local desiredJump = HubState.Config.JumpPower or 50
+            if desiredJump > 50 and root then
+                root.AssemblyLinearVelocity = Vector3.new(root.AssemblyLinearVelocity.X, desiredJump, root.AssemblyLinearVelocity.Z)
+            end
+        end
     end
 end)
 
@@ -435,7 +570,6 @@ Services.RunService.RenderStepped:Connect(function()
         end
     end
 end)
-
 local function setFly(enabled)
     HubState.Config.Fly = enabled
     local char = LocalPlayer.Character
@@ -550,47 +684,201 @@ Services.RunService.Heartbeat:Connect(function()
 end)
 
 -- ==============================================================================
+-- ==============================================================================
 -- 8.5. ENGINE KHUSUS: MINE ANTARCTICA (MASTER SUITE)
 -- ==============================================================================
--- 1. Deteksi Bijih & Kristal Terdekat (dengan filter Prioritas Rarity)
+-- 1. Deteksi Bijih & Kristal Terdekat (Spectrum Kelangkaan Lengkap: Zenith -> Common)
+local ALL_RARITY_TIERS = {
+    "zenith", "transcendent", "celestial", "divine", "godly", "secret",
+    "exotic", "mythic", "legendary", "epic", "rare", "uncommon", "common",
+    "meteor", "crystal", "boulder", "ore"
+}
+
+local RARITY_RANKS = {
+    zenith = 100000,
+    transcendent = 60000,
+    celestial = 40000,
+    divine = 30000,
+    godly = 25000,
+    secret = 20000,
+    exotic = 15000,
+    mythic = 10000,
+    legendary = 5000,
+    epic = 2500,
+    rare = 1200,
+    uncommon = 500,
+    common = 100,
+    meteor = 800,
+    crystal = 400,
+    boulder = 50,
+    ore = 20
+}
+
+local RARITY_COLORS = {
+    zenith = Color3.fromRGB(244, 63, 94),          -- Rose Neon
+    transcendent = Color3.fromRGB(168, 85, 247),    -- Purple
+    celestial = Color3.fromRGB(56, 189, 248),       -- Sky Cyan
+    divine = Color3.fromRGB(250, 204, 21),         -- Gold
+    godly = Color3.fromRGB(239, 68, 68),           -- Crimson Red
+    secret = Color3.fromRGB(192, 132, 252),        -- Violet
+    exotic = Color3.fromRGB(20, 184, 166),         -- Teal
+    mythic = Color3.fromRGB(147, 51, 234),         -- Deep Purple
+    legendary = Color3.fromRGB(245, 158, 11),      -- Amber Orange
+    epic = Color3.fromRGB(99, 102, 241),           -- Indigo
+    rare = Color3.fromRGB(59, 130, 246),           -- Royal Blue
+    uncommon = Color3.fromRGB(34, 197, 94),        -- Emerald Green
+    common = Color3.fromRGB(148, 163, 184),        -- Slate
+    meteor = Color3.fromRGB(251, 146, 60),         -- Meteor Orange
+    crystal = Color3.fromRGB(236, 72, 153),        -- Hot Pink
+    boulder = Color3.fromRGB(203, 213, 225),       -- Ice Silver
+    ore = Color3.fromRGB(161, 161, 170)            -- Zinc
+}
+
+local function getObjectRarity(obj)
+    if not obj then return 20, "Ore", RARITY_COLORS.ore end
+    local name = obj.Name:lower()
+    
+    -- 1. Periksa Attributes
+    local attrRarity = obj:GetAttribute("Rarity") or obj:GetAttribute("Tier") or obj:GetAttribute("Kelangkaan") or obj:GetAttribute("Type")
+    if attrRarity and type(attrRarity) == "string" then
+        local an = attrRarity:lower()
+        for rk, score in pairs(RARITY_RANKS) do
+            if an:find(rk) then
+                local label = rk:sub(1,1):upper() .. rk:sub(2)
+                return score, label, RARITY_COLORS[rk] or RARITY_COLORS.ore
+            end
+        end
+    end
+    
+    -- 2. Periksa Child Values (StringValue / NumberValue)
+    local valObj = obj:FindFirstChild("Rarity") or obj:FindFirstChild("Tier") or obj:FindFirstChild("Kelangkaan")
+    if valObj and valObj:IsA("ValueBase") and type(valObj.Value) == "string" then
+        local vn = valObj.Value:lower()
+        for rk, score in pairs(RARITY_RANKS) do
+            if vn:find(rk) then
+                local label = rk:sub(1,1):upper() .. rk:sub(2)
+                return score, label, RARITY_COLORS[rk] or RARITY_COLORS.ore
+            end
+        end
+    end
+    
+    -- 3. Periksa ProximityPrompt Text
+    for _, p in ipairs(obj:GetChildren()) do
+        if p:IsA("ProximityPrompt") then
+            local pText = (p.ObjectText .. " " .. p.ActionText):lower()
+            for rk, score in pairs(RARITY_RANKS) do
+                if pText:find(rk) then
+                    local label = rk:sub(1,1):upper() .. rk:sub(2)
+                    return score, label, RARITY_COLORS[rk] or RARITY_COLORS.ore
+                end
+            end
+        end
+    end
+    
+    -- 4. Periksa Nama Model / Part
+    for rk, score in pairs(RARITY_RANKS) do
+        if name:find(rk) then
+            local label = rk:sub(1,1):upper() .. rk:sub(2)
+            return score, label, RARITY_COLORS[rk] or RARITY_COLORS.ore
+        end
+    end
+    
+    -- Fallback Keyword
+    if name:find("crystal") or name:find("kristal") then
+        return 400, "Crystal", RARITY_COLORS.crystal
+    elseif name:find("meteor") then
+        return 800, "Meteor", RARITY_COLORS.meteor
+    elseif name:find("boulder") or name:find("batu") or name:find("rock") then
+        return 50, "Boulder", RARITY_COLORS.boulder
+    end
+    
+    return 20, "Ore", RARITY_COLORS.ore
+end
+
 local function getClosestOre()
     local myRoot = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
     if not myRoot then return nil end
-    local closest, minDist = nil, HubState.Config.MineRange or 35
+    local maxDist = HubState.Config.MineRange or 35
 
     local folders = {
         workspace:FindFirstChild("Ores"),
         workspace:FindFirstChild("Boulders"),
         workspace:FindFirstChild("Crystals"),
         workspace:FindFirstChild("Nodes"),
+        workspace:FindFirstChild("Map"),
+        workspace:FindFirstChild("Debris"),
+        workspace:FindFirstChild("Terrain"),
+        workspace:FindFirstChild("Chunks"),
         workspace
     }
-    
-    local priorityList = {"mythic", "legendary", "epic", "diamond", "crystal", "gold", "boulder", "ore"}
 
-    for _, priorityName in ipairs(priorityList) do
-        for _, folder in ipairs(folders) do
-            if folder then
-                for _, obj in ipairs(folder:GetChildren()) do
-                    local name = obj.Name:lower()
-                    if name:find(priorityName) and (obj:IsA("Model") or obj:IsA("BasePart")) then
-                        local pos = obj:IsA("Model") and (obj.PrimaryPart and obj.PrimaryPart.Position or (obj:FindFirstChildWhichIsA("BasePart") and obj:FindFirstChildWhichIsA("BasePart").Position)) or (obj:IsA("BasePart") and obj.Position)
-                        if pos then
-                            local d = (pos - myRoot.Position).Magnitude
-                            if d < minDist then
-                                minDist = d
-                                closest = obj
-                                if HubState.Config.OrePriority then
-                                    return closest -- Prioritaskan batu langka terlebih dahulu
-                                end
-                            end
-                        end
-                    end
+    local candidates = {}
+    local seen = {}
+
+    local function checkCandidate(obj)
+        if not obj or seen[obj] then return end
+        if not (obj:IsA("Model") or obj:IsA("BasePart")) then return end
+        local pos = obj:IsA("Model") and (obj.PrimaryPart and obj.PrimaryPart.Position or (obj:FindFirstChildWhichIsA("BasePart") and obj:FindFirstChildWhichIsA("BasePart").Position)) or (obj:IsA("BasePart") and obj.Position)
+        if not pos then return end
+        local dist = (pos - myRoot.Position).Magnitude
+        if dist > maxDist then return end
+
+        local rScore, rLabel, _ = getObjectRarity(obj)
+        
+        -- Filter berdasarkan MineTargets jika dikonfigurasi
+        if HubState.Config.MineTargets and HubState.Config.MineTargets[rLabel] == false then
+            return
+        end
+
+        -- Filter berdasarkan OrePriorityTier
+        local tierSetting = HubState.Config.OrePriorityTier or "Zenith & Exotic+"
+        local allowed = true
+        if tierSetting == "Zenith & Exotic+" then
+            allowed = (rScore >= 15000) or not HubState.Config.OrePriority
+        elseif tierSetting == "Mythic+" then
+            allowed = (rScore >= 10000) or not HubState.Config.OrePriority
+        elseif tierSetting == "Legendary+" then
+            allowed = (rScore >= 5000) or not HubState.Config.OrePriority
+        elseif tierSetting == "Rare+" then
+            allowed = (rScore >= 1200) or not HubState.Config.OrePriority
+        end
+
+        if allowed then
+            seen[obj] = true
+            table.insert(candidates, {obj = obj, dist = dist, score = rScore * 1000 - dist})
+        end
+    end
+
+    for _, folder in ipairs(folders) do
+        if folder then
+            local children = (folder == workspace) and folder:GetChildren() or folder:GetDescendants()
+            for _, obj in ipairs(children) do
+                local name = obj.Name:lower()
+                if name:find("ore") or name:find("boulder") or name:find("crystal") or name:find("kristal") or name:find("rock") or name:find("deposit") or name:find("meteor") or name:find("node") then
+                    checkCandidate(obj)
+                elseif obj:FindFirstChildOfClass("ProximityPrompt") then
+                    checkCandidate(obj)
                 end
             end
         end
     end
-    return closest
+
+    -- Pindai juga ProximityPrompt [E] MINE terdekat di workspace
+    for _, prompt in ipairs(workspace:GetDescendants()) do
+        if prompt:IsA("ProximityPrompt") then
+            local pText = (prompt.ActionText .. " " .. prompt.ObjectText):lower()
+            if pText:find("mine") or pText:find("gali") or pText:find("break") or pText:find("boulder") or pText:find("crystal") or pText:find("ore") then
+                local parentPart = prompt.Parent
+                if parentPart and parentPart:IsA("BasePart") then
+                    checkCandidate(parentPart.Parent or parentPart)
+                end
+            end
+        end
+    end
+
+    if #candidates == 0 then return nil end
+    table.sort(candidates, function(a, b) return a.score > b.score end)
+    return candidates[1].obj
 end
 
 -- 2. Auto Equip Best Pickaxe Loop
@@ -598,45 +886,451 @@ task.spawn(function()
     while true do
         task.wait(1.5)
         if HubState.Config.AutoPickaxe and LocalPlayer.Character then
-            local char = LocalPlayer.Character
-            if not char:FindFirstChildOfClass("Tool") and LocalPlayer.Backpack then
-                local bestTool = nil
-                for _, tool in ipairs(LocalPlayer.Backpack:GetChildren()) do
-                    if tool:IsA("Tool") and (tool.Name:lower():find("pick") or tool.Name:lower():find("axe") or tool.Name:lower():find("drill") or tool.Name:lower():find("hammer")) then
-                        bestTool = tool
-                        break
+            pcall(function()
+                local hum = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+                local backpack = LocalPlayer:FindFirstChild("Backpack")
+                if hum and backpack then
+                    local bestTool = nil
+                    local highestTier = 0
+                    local pickaxeKeywords = {
+                        ["zenith"] = 1000, ["transcendent"] = 800, ["celestial"] = 600, ["divine"] = 500,
+                        ["godly"] = 400, ["secret"] = 350, ["exotic"] = 300, ["mythic"] = 250,
+                        ["legendary"] = 200, ["epic"] = 150, ["rare"] = 100, ["uncommon"] = 50,
+                        ["diamond"] = 80, ["crystal"] = 60, ["gold"] = 40, ["iron"] = 20,
+                        ["pickaxe"] = 10, ["beliung"] = 10, ["axe"] = 5
+                    }
+                    for _, tool in ipairs(backpack:GetChildren()) do
+                        if tool:IsA("Tool") then
+                            local tname = tool.Name:lower()
+                            for kw, tier in pairs(pickaxeKeywords) do
+                                if tname:find(kw) and tier > highestTier then
+                                    highestTier = tier
+                                    bestTool = tool
+                                end
+                            end
+                        end
+                    end
+                    if bestTool and not LocalPlayer.Character:FindFirstChild(bestTool.Name) then
+                        hum:EquipTool(bestTool)
                     end
                 end
-                if not bestTool then
-                    bestTool = LocalPlayer.Backpack:FindFirstChildOfClass("Tool")
+            end)
+        end
+    end
+end)
+
+-- ==============================================================================
+-- 3. GLOBAL GAMEPASS HOOK & MINING MODS ENGINE (100% UNLOCKED)
+-- ==============================================================================
+
+-- 3.0. MarketplaceService & RemoteEvent Namecall Hook
+pcall(function()
+    local MPS = game:GetService("MarketplaceService")
+    if hookmetamethod then
+        local oldNamecall
+        oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
+            local method = getnamecallmethod()
+            local args = {...}
+
+            -- Bypass pengecekan gamepass asli Roblox di client (Semua Gamepass Dimiliki)
+            if not checkcaller() and (method == "UserOwnsGamePassAsync" or method == "PlayerOwnsAsset") then
+                return true
+            end
+
+            -- Pengganda Hit Otomatis saat Script Game memanggil FireServer untuk menambang!
+            if not checkcaller() and method == "FireServer" and typeof(self) == "Instance" and self:IsA("RemoteEvent") then
+                local rn = self.Name:lower()
+                if rn:find("mine") or rn:find("hit") or rn:find("damage") or rn:find("boulder") or rn:find("swing") or rn:find("dig") then
+                    if HubState.Config.MiningModsEnabled then
+                        local mult = (HubState.Config.Power8x or (HubState.Config.MiningModsList and HubState.Config.MiningModsList["8x Kekuatan"])) and 8 or 1
+                        if HubState.Config.InstantMine or (HubState.Config.MiningModsList and HubState.Config.MiningModsList["Ranjau Instan"]) then
+                            mult = math.max(mult, 32)
+                        end
+                        if mult > 1 and not _G.AGY_HitMultiplying then
+                            _G.AGY_HitMultiplying = true
+                            for i = 2, mult do
+                                pcall(function() self:FireServer(unpack(args)) end)
+                            end
+                            _G.AGY_HitMultiplying = false
+                        end
+                    end
                 end
-                if bestTool then
-                    bestTool.Parent = char
+            end
+
+            return oldNamecall(self, ...)
+        end)
+    end
+    if hookfunction and MPS.UserOwnsGamePassAsync then
+        hookfunction(MPS.UserOwnsGamePassAsync, function(self, ...)
+            return true
+        end)
+    end
+end)
+
+-- 3.0.1. Pemicu ProximityPrompt Instant 0-Detik (Mine & Interact)
+pcall(function()
+    Services.ProximityPromptService.PromptShown:Connect(function(prompt)
+        if HubState.Config.MiningModsEnabled then
+            if HubState.Config.InstantMine or HubState.Config.InstantPrompt or (HubState.Config.MiningModsList and (HubState.Config.MiningModsList["Ranjau Instan"] or HubState.Config.MiningModsList["Instant Break"])) then
+                local pText = (prompt.ActionText .. " " .. prompt.ObjectText):lower()
+                if pText:find("mine") or pText:find("gali") or pText:find("break") or pText:find("boulder") or pText:find("crystal") or pText:find("ore") then
+                    prompt.HoldDuration = 0
+                end
+            end
+        end
+    end)
+    Services.ProximityPromptService.PromptButtonHoldBegan:Connect(function(prompt, player)
+        if player == LocalPlayer and HubState.Config.MiningModsEnabled then
+            if HubState.Config.InstantMine or HubState.Config.InstantPrompt or (HubState.Config.MiningModsList and (HubState.Config.MiningModsList["Ranjau Instan"] or HubState.Config.MiningModsList["Instant Break"])) then
+                prompt.HoldDuration = 0
+                if fireproximityprompt then
+                    fireproximityprompt(prompt, 0)
+                end
+            end
+        end
+    end)
+end)
+
+-- 3.0.2. Tool Hooking (Manual Pickaxe Swing -> 8x Hit & Instant Mine)
+local function hookTool(tool)
+    if not tool or not tool:IsA("Tool") then return end
+    local tname = tool.Name:lower()
+    if not (tname:find("pickaxe") or tname:find("beliung") or tname:find("axe") or tname:find("drill") or tname:find("hammer")) then return end
+
+    pcall(function()
+        if HubState.Config.Power8x or (HubState.Config.MiningModsEnabled and HubState.Config.MiningModsList and HubState.Config.MiningModsList["8x Kekuatan"]) then
+            local dmg = tool:GetAttribute("Damage") or tool:GetAttribute("Power") or 10
+            tool:SetAttribute("Damage", dmg * 8)
+            tool:SetAttribute("Power", dmg * 8)
+            tool:SetAttribute("MiningPower", 8)
+        end
+        if HubState.Config.InstantMine or (HubState.Config.MiningModsEnabled and HubState.Config.MiningModsList and HubState.Config.MiningModsList["Ranjau Instan"]) then
+            tool:SetAttribute("Damage", 999999)
+            tool:SetAttribute("Power", 999999)
+            tool:SetAttribute("InstantBreak", true)
+        end
+        if HubState.Config.FastDig2x or (HubState.Config.MiningModsEnabled and HubState.Config.MiningModsList and HubState.Config.MiningModsList["2x Penggalian Cepat"]) then
+            tool:SetAttribute("Cooldown", 0.05)
+            tool:SetAttribute("AttackSpeed", 2)
+            tool:SetAttribute("SwingSpeed", 2)
+        end
+    end)
+
+    if not tool:GetAttribute("AGY_SwingHooked") then
+        tool:SetAttribute("AGY_SwingHooked", true)
+        tool.Activated:Connect(function()
+            if not HubState.Config.MiningModsEnabled then return end
+            local char = LocalPlayer.Character
+            local hrp = char and char:FindFirstChild("HumanoidRootPart")
+            if not hrp then return end
+
+            local targetOre = getClosestOre()
+            if targetOre then
+                for _, p in ipairs(targetOre:GetDescendants()) do
+                    if p:IsA("ProximityPrompt") then
+                        p.HoldDuration = 0
+                        if fireproximityprompt then fireproximityprompt(p, 0) end
+                    end
+                end
+
+                local powerMult = (HubState.Config.Power8x or (HubState.Config.MiningModsList and HubState.Config.MiningModsList["8x Kekuatan"])) and 8 or 1
+                local hits = powerMult
+                if HubState.Config.InstantMine or (HubState.Config.MiningModsList and HubState.Config.MiningModsList["Ranjau Instan"]) then
+                    hits = math.max(hits, 32)
+                end
+
+                for i = 1, hits do
+                    for _, rem in ipairs(Services.ReplicatedStorage:GetDescendants()) do
+                        if rem:IsA("RemoteEvent") then
+                            local rn = rem.Name:lower()
+                            if rn:find("mine") or rn:find("hit") or rn:find("damage") or rn:find("boulder") or rn:find("swing") or rn:find("dig") then
+                                pcall(function() rem:FireServer(targetOre) end)
+                            end
+                        end
+                    end
+                end
+            end
+        end)
+    end
+end
+
+local function hookAllTools()
+    local bp = LocalPlayer:FindFirstChild("Backpack")
+    if bp then
+        for _, t in ipairs(bp:GetChildren()) do hookTool(t) end
+        bp.ChildAdded:Connect(hookTool)
+    end
+    if LocalPlayer.Character then
+        for _, t in ipairs(LocalPlayer.Character:GetChildren()) do hookTool(t) end
+        LocalPlayer.Character.ChildAdded:Connect(hookTool)
+    end
+end
+hookAllTools()
+LocalPlayer.CharacterAdded:Connect(function(char)
+    task.wait(0.3)
+    hookAllTools()
+end)
+
+-- 3.0.3. Emulasi Folder Gamepasses & Sinkronisasi Atribut
+local function ensureGamepassFolder()
+    local passFolder = LocalPlayer:FindFirstChild("Gamepasses") or LocalPlayer:FindFirstChild("Passes") or LocalPlayer:FindFirstChild("Perks")
+    if not passFolder then
+        passFolder = Instance.new("Folder")
+        passFolder.Name = "Gamepasses"
+        pcall(function() passFolder.Parent = LocalPlayer end)
+    end
+    local passNames = {
+        "8x Strength", "8x Power", "8x Kekuatan", "Instant Mine", "Instant Break", "Ranjau Instan",
+        "No Fall Damage", "Tidak Ada Kerusakan Jatuh", "4x Weight", "4x Capacity", "x4 Berat Dibawa",
+        "2x Fast Dig", "2x Penggalian Cepat", "2x Luck", "2x Keberuntungan", "4x Luck", "4x Keberuntungan",
+        "2x Crystals", "x2 Kristal", "2x Coins", "2x Koin", "VIP", "VIP Perks"
+    }
+    for _, pn in ipairs(passNames) do
+        local val = passFolder:FindFirstChild(pn)
+        if not val then
+            val = Instance.new("BoolValue")
+            val.Name = pn
+            val.Value = true
+            pcall(function() val.Parent = passFolder end)
+        else
+            val.Value = true
+        end
+    end
+end
+
+local function syncGamepassPerks()
+    if not LocalPlayer then return end
+    local char = LocalPlayer.Character
+
+    -- 1. Gamepass Folder
+    ensureGamepassFolder()
+
+    -- 2. x4 Berat yang Dibawa
+    if HubState.Config.CarryWeight4x or (HubState.Config.MiningModsEnabled and HubState.Config.MiningModsList and HubState.Config.MiningModsList["x4 Berat Dibawa"]) then
+        pcall(function()
+            local capAttrs = {
+                "MaxCapacity", "BackpackCapacity", "BagSize", "WeightLimit", "MaxWeight",
+                "Capacity", "BagCapacity", "MaxBag", "Weight", "InventoryCapacity", "Storage", "MaxStorage"
+            }
+            for _, a in ipairs(capAttrs) do
+                local cur = LocalPlayer:GetAttribute(a)
+                if cur and type(cur) == "number" then
+                    if not LocalPlayer:GetAttribute(a .. "_Orig") then
+                        LocalPlayer:SetAttribute(a .. "_Orig", cur)
+                    end
+                    LocalPlayer:SetAttribute(a, cur * 4)
+                end
+            end
+            local ls = LocalPlayer:FindFirstChild("leaderstats") or LocalPlayer:FindFirstChild("Data") or LocalPlayer:FindFirstChild("Stats") or LocalPlayer:FindFirstChild("Values")
+            if ls then
+                for _, child in ipairs(ls:GetChildren()) do
+                    local cn = child.Name:lower()
+                    if (cn:find("cap") or cn:find("bag") or cn:find("weight") or cn:find("storage")) and child:IsA("ValueBase") and type(child.Value) == "number" then
+                        if not child:GetAttribute("Orig") then
+                            child:SetAttribute("Orig", child.Value)
+                        end
+                        child.Value = (child:GetAttribute("Orig") or child.Value) * 4
+                    end
+                end
+            end
+            LocalPlayer:SetAttribute("CarryWeight4x", true)
+            LocalPlayer:SetAttribute("4xWeight", true)
+            LocalPlayer:SetAttribute("x4Weight", true)
+            LocalPlayer:SetAttribute("Has4xWeight", true)
+            LocalPlayer:SetAttribute("BagMultiplier", 4)
+            LocalPlayer:SetAttribute("WeightMultiplier", 4)
+        end)
+    end
+
+    -- 3. 2x & 4x Keberuntungan (Total 8x Luck)
+    local luckMult = 1
+    if HubState.Config.Luck2x or (HubState.Config.MiningModsEnabled and HubState.Config.MiningModsList and HubState.Config.MiningModsList["2x Keberuntungan"]) then luckMult = luckMult * 2 end
+    if HubState.Config.Luck4x or (HubState.Config.MiningModsEnabled and HubState.Config.MiningModsList and HubState.Config.MiningModsList["4x Keberuntungan"]) then luckMult = luckMult * 4 end
+    if HubState.Config.VIPPerks then luckMult = luckMult * 1.25 end
+    pcall(function()
+        LocalPlayer:SetAttribute("LuckMultiplier", luckMult)
+        LocalPlayer:SetAttribute("Luck", luckMult)
+        LocalPlayer:SetAttribute("DigLuck", luckMult)
+        LocalPlayer:SetAttribute("MiningLuck", luckMult)
+        LocalPlayer:SetAttribute("CrystalLuck", luckMult)
+        LocalPlayer:SetAttribute("2xLuck", true)
+        LocalPlayer:SetAttribute("4xLuck", true)
+        LocalPlayer:SetAttribute("Has2xLuck", true)
+        LocalPlayer:SetAttribute("Has4xLuck", true)
+        if char then
+            char:SetAttribute("Luck", luckMult)
+            char:SetAttribute("LuckMultiplier", luckMult)
+        end
+        local ls = LocalPlayer:FindFirstChild("leaderstats") or LocalPlayer:FindFirstChild("Data") or LocalPlayer:FindFirstChild("Stats")
+        if ls then
+            for _, child in ipairs(ls:GetChildren()) do
+                if child.Name:lower():find("luck") and child:IsA("ValueBase") and type(child.Value) == "number" then
+                    child.Value = luckMult
+                end
+            end
+        end
+    end)
+
+    -- 4. x2 Kristal
+    if HubState.Config.Crystal2x or HubState.Config.Crystals2x or (HubState.Config.MiningModsEnabled and HubState.Config.MiningModsList and HubState.Config.MiningModsList["x2 Kristal"]) then
+        pcall(function()
+            LocalPlayer:SetAttribute("CrystalMultiplier", 2)
+            LocalPlayer:SetAttribute("DoubleCrystals", true)
+            LocalPlayer:SetAttribute("x2Crystal", true)
+            LocalPlayer:SetAttribute("Has2xCrystal", true)
+            if char then
+                char:SetAttribute("CrystalMultiplier", 2)
+                char:SetAttribute("DoubleCrystals", true)
+            end
+        end)
+    end
+
+    -- 5. 2x Koin
+    if HubState.Config.Coins2x or (HubState.Config.MiningModsEnabled and HubState.Config.MiningModsList and HubState.Config.MiningModsList["2x Koin"]) then
+        pcall(function()
+            LocalPlayer:SetAttribute("CoinMultiplier", 2)
+            LocalPlayer:SetAttribute("SellMultiplier", 2)
+            LocalPlayer:SetAttribute("DoubleCoins", true)
+            LocalPlayer:SetAttribute("2xCoins", true)
+            LocalPlayer:SetAttribute("Has2xCoins", true)
+        end)
+    end
+
+    -- 6. 8x Kekuatan & Ranjau Instan pada Pickaxe
+    pcall(function()
+        LocalPlayer:SetAttribute("StrengthMultiplier", (HubState.Config.Power8x or (HubState.Config.MiningModsList and HubState.Config.MiningModsList["8x Kekuatan"])) and 8 or 1)
+        LocalPlayer:SetAttribute("Power8x", true)
+        LocalPlayer:SetAttribute("Has8xPower", true)
+        if HubState.Config.InstantMine or (HubState.Config.MiningModsList and HubState.Config.MiningModsList["Ranjau Instan"]) then
+            LocalPlayer:SetAttribute("InstantMine", true)
+            LocalPlayer:SetAttribute("InstantBreak", true)
+        end
+        if HubState.Config.FastDig2x or (HubState.Config.MiningModsList and HubState.Config.MiningModsList["2x Penggalian Cepat"]) then
+            LocalPlayer:SetAttribute("FastDig2x", true)
+            LocalPlayer:SetAttribute("DigSpeedMultiplier", 2)
+        end
+    end)
+
+    hookAllTools()
+end
+HubState.SyncGamepasses = syncGamepassPerks
+syncGamepassPerks()
+
+task.spawn(function()
+    while true do
+        task.wait(1.5)
+        syncGamepassPerks()
+    end
+end)
+
+-- 3.0.4. Fast Dig 2x Animation Speed Doubler
+Services.RunService.Heartbeat:Connect(function()
+    if HubState.Config.MiningModsEnabled and (HubState.Config.FastDig2x or (HubState.Config.MiningModsList and HubState.Config.MiningModsList["2x Penggalian Cepat"])) then
+        if LocalPlayer.Character then
+            local hum = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+            if hum then
+                local animTracks = hum:GetPlayingAnimationTracks()
+                for _, track in ipairs(animTracks) do
+                    local aname = track.Name:lower()
+                    if aname:find("mine") or aname:find("swing") or aname:find("dig") or aname:find("attack") or aname:find("pickaxe") then
+                        if track.Speed < 2 then
+                            track:AdjustSpeed(2)
+                        end
+                    end
                 end
             end
         end
     end
 end)
 
--- 3. Auto Mine & Mining Mods (Fast Mine Multi-Hit & MiningMods) Loop
+-- 3. Auto Mine Background Loop
+local function performInstantMineNow()
+    local targetOre = getClosestOre()
+    if targetOre and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+        local tool = LocalPlayer.Character:FindFirstChildOfClass("Tool")
+        if tool then tool:Activate() end
+        for _, prompt in ipairs(targetOre:GetDescendants()) do
+            if prompt:IsA("ProximityPrompt") then
+                prompt.HoldDuration = 0
+                if fireproximityprompt then fireproximityprompt(prompt, 0) end
+            end
+        end
+        local powerMult = (HubState.Config.Power8x or (HubState.Config.MiningModsList and HubState.Config.MiningModsList["8x Kekuatan"])) and 8 or 1
+        local hits = powerMult
+        if HubState.Config.InstantMine or (HubState.Config.MiningModsList and HubState.Config.MiningModsList["Ranjau Instan"]) then
+            hits = math.max(hits, 32)
+        end
+        for i = 1, hits do
+            for _, rem in ipairs(Services.ReplicatedStorage:GetDescendants()) do
+                if rem:IsA("RemoteEvent") then
+                    local rn = rem.Name:lower()
+                    if rn:find("mine") or rn:find("hit") or rn:find("damage") or rn:find("boulder") or rn:find("swing") or rn:find("dig") then
+                        pcall(function() rem:FireServer(targetOre) end)
+                    end
+                end
+            end
+        end
+    end
+end
+HubState.InstantMineClosest = performInstantMineNow
+
 task.spawn(function()
     while true do
-        local isFast = HubState.Config.FastMine or (HubState.Config.MiningModsEnabled and (HubState.Config.MiningModsList["Fast Swing"] or HubState.Config.MiningPreset == "Blatant"))
+        local isFast = HubState.Config.FastMine or (HubState.Config.MiningModsEnabled and (HubState.Config.MiningModsList and (HubState.Config.MiningModsList["Fast Swing"] or HubState.Config.MiningPreset == "Blatant")))
         local delay = isFast and 0.05 or 0.12
+        if HubState.Config.FastDig2x or (HubState.Config.MiningModsEnabled and HubState.Config.MiningModsList and HubState.Config.MiningModsList["2x Penggalian Cepat"]) then
+            delay = delay * 0.5 -- 2X PENGGALIAN CEPAT
+        end
         task.wait(delay)
-        if (HubState.Config.AutoMine or HubState.Config.MiningModsEnabled) and LocalPlayer.Character then
+        if HubState.Config.AutoMine and LocalPlayer.Character then
             local tool = LocalPlayer.Character:FindFirstChildOfClass("Tool")
             if tool then
                 tool:Activate()
             end
             local targetOre = getClosestOre()
             if targetOre then
-                local hits = (HubState.Config.FastMine or HubState.Config.MiningModsEnabled) and (HubState.Config.FastMineHits or 6) or 1
+                for _, prompt in ipairs(targetOre:GetDescendants()) do
+                    if prompt:IsA("ProximityPrompt") then
+                        prompt.HoldDuration = 0
+                        if fireproximityprompt then
+                            fireproximityprompt(prompt, 0)
+                        end
+                    end
+                end
+                if targetOre.Parent then
+                    for _, prompt in ipairs(targetOre.Parent:GetChildren()) do
+                        if prompt:IsA("ProximityPrompt") then
+                            prompt.HoldDuration = 0
+                            if fireproximityprompt then fireproximityprompt(prompt, 0) end
+                        end
+                    end
+                end
+
+                pcall(function()
+                    if LocalPlayer:FindFirstChild("PlayerGui") then
+                        for _, gui in ipairs(LocalPlayer.PlayerGui:GetDescendants()) do
+                            if gui:IsA("ImageButton") or gui:IsA("TextButton") then
+                                local gn = gui.Name:lower()
+                                if gn:find("mine") or gn:find("gali") or gn:find("dig") or gn:find("swing") or gn:find("attack") then
+                                    if gui.Visible and firesignal then firesignal(gui.Activated) end
+                                end
+                            end
+                        end
+                    end
+                end)
+
+                local baseHits = (HubState.Config.FastMine or HubState.Config.MiningModsEnabled) and (HubState.Config.FastMineHits or 6) or 1
+                local powerMult = (HubState.Config.Power8x or (HubState.Config.MiningModsEnabled and HubState.Config.MiningModsList and HubState.Config.MiningModsList["8x Kekuatan"])) and 8 or 1
+                local hits = baseHits * powerMult
+                if HubState.Config.InstantMine or (HubState.Config.MiningModsEnabled and HubState.Config.MiningModsList and HubState.Config.MiningModsList["Ranjau Instan"]) then
+                    hits = math.max(hits, 32)
+                end
+
                 for i = 1, hits do
                     for _, rem in ipairs(Services.ReplicatedStorage:GetDescendants()) do
                         if rem:IsA("RemoteEvent") then
                             local rname = rem.Name:lower()
-                            if rname:find("mine") or rname:find("hit") or rname:find("damage") or rname:find("boulder") or rname:find("swing") then
+                            if rname:find("mine") or rname:find("hit") or rname:find("damage") or rname:find("boulder") or rname:find("swing") or rname:find("dig") then
                                 pcall(function() rem:FireServer(targetOre) end)
                             end
                         end
@@ -654,12 +1348,12 @@ task.spawn(function()
         if HubState.Config.PlayerModsEnabled and LocalPlayer.Character then
             local hum = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
             if hum then
-                if HubState.Config.PlayerPreset == "Blatant" then
-                    hum.WalkSpeed = math.max(HubState.Config.WalkSpeed, 100)
-                    hum.JumpPower = math.max(HubState.Config.JumpPower, 150)
-                elseif HubState.Config.PlayerPreset == "Legit" then
-                    hum.WalkSpeed = 32
-                    hum.JumpPower = 70
+                hum.UseJumpPower = true
+                if HubState.Config.WalkSpeed and HubState.Config.WalkSpeed > 0 then
+                    hum.WalkSpeed = HubState.Config.WalkSpeed
+                end
+                if HubState.Config.JumpPower and HubState.Config.JumpPower > 0 then
+                    hum.JumpPower = HubState.Config.JumpPower
                 end
             end
             HubState.Config.AntiFreeze = true
@@ -673,22 +1367,54 @@ end)
 -- 3.6. Teleport Collect Engine Loop
 task.spawn(function()
     while true do
-        task.wait(0.35)
+        task.wait(0.6)
         if HubState.Config.TeleportCollectEnabled and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
             local myRoot = LocalPlayer.Character.HumanoidRootPart
-            for _, item in ipairs(workspace:GetDescendants()) do
-                if item:IsA("TouchTransmitter") and item.Parent and item.Parent:IsA("BasePart") then
-                    local pname = item.Parent.Name:lower()
-                    if pname:find("crystal") or pname:find("drop") or pname:find("shard") or pname:find("rune") or pname:find("meteor") or pname:find("coin") then
-                        local dist = (item.Parent.Position - myRoot.Position).Magnitude
-                        if dist > 4 and dist < 80 then
-                            local oldCF = myRoot.CFrame
-                            myRoot.CFrame = item.Parent.CFrame
-                            firetouchinterest(myRoot, item.Parent, 0)
-                            firetouchinterest(myRoot, item.Parent, 1)
-                            task.wait(0.06)
-                            myRoot.CFrame = oldCF
-                            break
+            local maxRange = (HubState.Config.CollectRange or 300) * 1.5
+            local searchDirs = {
+                workspace:FindFirstChild("Drops"),
+                workspace:FindFirstChild("Debris"),
+                workspace:FindFirstChild("SpawnedItems"),
+                workspace:FindFirstChild("Collectibles"),
+                workspace:FindFirstChild("Crystals"),
+                workspace:FindFirstChild("Candy"),
+                workspace:FindFirstChild("Permen"),
+                workspace
+            }
+
+            local dropKeywords = {"crystal", "drop", "shard", "rune", "meteor", "coin", "candy", "permen", "gem", "loot", "present"}
+            for _, folder in ipairs(searchDirs) do
+                if folder then
+                    local items = (folder == workspace) and folder:GetChildren() or folder:GetDescendants()
+                    for _, item in ipairs(items) do
+                        local iname = item.Name:lower()
+                        local isDrop = false
+                        for _, kw in ipairs(dropKeywords) do
+                            if iname:find(kw) then isDrop = true break end
+                        end
+                        if isDrop then
+                            local part = item:IsA("BasePart") and item or (item:IsA("Model") and (item.PrimaryPart or item:FindFirstChildWhichIsA("BasePart")))
+                            if part then
+                                local dist = (part.Position - myRoot.Position).Magnitude
+                                if dist <= maxRange and dist > 8 then
+                                    local oldCF = myRoot.CFrame
+                                    myRoot.CFrame = part.CFrame + Vector3.new(0, 2, 0)
+                                    task.wait(0.08)
+                                    pcall(function()
+                                        firetouchinterest(myRoot, part, 0)
+                                        firetouchinterest(myRoot, part, 1)
+                                        if HubState.Config.Crystal2x or HubState.Config.Crystals2x then
+                                            firetouchinterest(myRoot, part, 0)
+                                            firetouchinterest(myRoot, part, 1)
+                                        end
+                                    end)
+                                    local prompt = item:FindFirstChildOfClass("ProximityPrompt") or part:FindFirstChildOfClass("ProximityPrompt")
+                                    if prompt and fireproximityprompt then fireproximityprompt(prompt, 0) end
+                                    task.wait(0.05)
+                                    myRoot.CFrame = oldCF
+                                    break
+                                end
+                            end
                         end
                     end
                 end
@@ -697,36 +1423,160 @@ task.spawn(function()
     end
 end)
 
--- 4. Auto Collect (Drops, Kristal, & Shards)
-task.spawn(function()
-    while true do
-        task.wait(0.25)
-        if HubState.Config.AutoCollect and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
-            local myRoot = LocalPlayer.Character.HumanoidRootPart
-            for _, item in ipairs(workspace:GetDescendants()) do
-                if item:IsA("TouchTransmitter") and item.Parent then
-                    local pname = item.Parent.Name:lower()
-                    if pname:find("crystal") or pname:find("drop") or pname:find("shard") or pname:find("rune") or pname:find("meteor") or pname:find("coin") then
-                        pcall(function()
-                            firetouchinterest(myRoot, item.Parent, 0)
-                            firetouchinterest(myRoot, item.Parent, 1)
-                        end)
+-- 4. Auto Collect (Everything: Permen, Kristal, Drops, Runes, Coins, Shards & Chests)
+local function performAutoCollectNow()
+    local char = LocalPlayer.Character
+    local myRoot = char and char:FindFirstChild("HumanoidRootPart")
+    if not myRoot then return end
+    local maxRange = HubState.Config.CollectRange or 300
+    local searchDirs = {
+        workspace:FindFirstChild("Drops"),
+        workspace:FindFirstChild("Debris"),
+        workspace:FindFirstChild("SpawnedItems"),
+        workspace:FindFirstChild("Collectibles"),
+        workspace:FindFirstChild("Crystals"),
+        workspace:FindFirstChild("Candy"),
+        workspace:FindFirstChild("Permen"),
+        workspace
+    }
+    local dropKeywords = {"crystal", "drop", "shard", "rune", "meteor", "coin", "candy", "permen", "gem", "loot", "present", "ore", "chest", "crate"}
+    for _, folder in ipairs(searchDirs) do
+        if folder then
+            local items = (folder == workspace) and folder:GetChildren() or folder:GetDescendants()
+            for _, item in ipairs(items) do
+                local iname = item.Name:lower()
+                local isDrop = false
+                for _, kw in ipairs(dropKeywords) do
+                    if iname:find(kw) then isDrop = true break end
+                end
+                if isDrop then
+                    local part = item:IsA("BasePart") and item or (item:IsA("Model") and (item.PrimaryPart or item:FindFirstChildWhichIsA("BasePart"))) or (item:IsA("Tool") and item:FindFirstChild("Handle"))
+                    if part then
+                        local dist = (part.Position - myRoot.Position).Magnitude
+                        if dist <= maxRange then
+                            pcall(function()
+                                firetouchinterest(myRoot, part, 0)
+                                firetouchinterest(myRoot, part, 1)
+                                if HubState.Config.Crystal2x or HubState.Config.Crystals2x then
+                                    firetouchinterest(myRoot, part, 0)
+                                    firetouchinterest(myRoot, part, 1)
+                                end
+                            end)
+                            local prompt = item:FindFirstChildOfClass("ProximityPrompt") or part:FindFirstChildOfClass("ProximityPrompt")
+                            if prompt and fireproximityprompt then
+                                prompt.HoldDuration = 0
+                                fireproximityprompt(prompt, 0)
+                            end
+                        end
                     end
                 end
             end
         end
     end
-end)
+    for _, rem in ipairs(Services.ReplicatedStorage:GetDescendants()) do
+        if rem:IsA("RemoteEvent") then
+            local rn = rem.Name:lower()
+            if rn:find("collect") or rn:find("pickup") or rn:find("claimdrop") or rn:find("take") then
+                pcall(function() rem:FireServer() end)
+            end
+        end
+    end
+end
+HubState.CollectEverythingNow = performAutoCollectNow
 
--- 5. Auto Sell (Jual Hasil Tambang)
 task.spawn(function()
     while true do
-        task.wait(3)
-        if HubState.Config.AutoSell then
+        task.wait(0.18)
+        if HubState.Config.AutoCollect and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+            local myRoot = LocalPlayer.Character.HumanoidRootPart
+            local maxRange = HubState.Config.CollectRange or 300
+            local preset = HubState.Config.AutoCollectPreset or "Everything"
+            if preset == "Everything" then
+                maxRange = math.max(maxRange, 500)
+            end
+
+            local searchDirs = {
+                workspace:FindFirstChild("Drops"),
+                workspace:FindFirstChild("Debris"),
+                workspace:FindFirstChild("SpawnedItems"),
+                workspace:FindFirstChild("Collectibles"),
+                workspace:FindFirstChild("Crystals"),
+                workspace:FindFirstChild("Candy"),
+                workspace:FindFirstChild("Permen"),
+                workspace
+            }
+
+            local dropKeywords = {"crystal", "drop", "shard", "rune", "meteor", "coin", "candy", "permen", "gem", "loot", "present"}
+
+            for _, folder in ipairs(searchDirs) do
+                if folder then
+                    local items = (folder == workspace) and folder:GetChildren() or folder:GetDescendants()
+                    for _, item in ipairs(items) do
+                        local iname = item.Name:lower()
+                        local isDrop = false
+                        
+                        -- Evaluasi Multi-Select CollectTargets jika tersedia
+                        local tg = HubState.Config.CollectTargets
+                        if tg then
+                            if tg["Crystals"] and (iname:find("crystal") or iname:find("kristal") or iname:find("gem")) then isDrop = true end
+                            if tg["Coins"] and iname:find("coin") then isDrop = true end
+                            if tg["Candy / Permen"] and (iname:find("candy") or iname:find("permen")) then isDrop = true end
+                            if tg["Runes"] and iname:find("rune") then isDrop = true end
+                            if tg["Meteors"] and iname:find("meteor") then isDrop = true end
+                            if tg["Shards"] and iname:find("shard") then isDrop = true end
+                            if tg["Boulders"] and (iname:find("boulder") or iname:find("rock")) then isDrop = true end
+                            if tg["Ores"] and iname:find("ore") then isDrop = true end
+                            if tg["Chests / Crates"] and (iname:find("chest") or iname:find("crate") or iname:find("box")) then isDrop = true end
+                        end
+
+                        if not isDrop then
+                            if preset == "Crystals Only" then
+                                if iname:find("crystal") or iname:find("gem") or iname:find("shard") then isDrop = true end
+                            elseif preset == "Coins Only" then
+                                if iname:find("coin") or iname:find("permen") or iname:find("candy") then isDrop = true end
+                            elseif preset == "Runes Only" then
+                                if iname:find("rune") then isDrop = true end
+                            else
+                                for _, kw in ipairs(dropKeywords) do
+                                    if iname:find(kw) then isDrop = true break end
+                                end
+                            end
+                        end
+
+                        if isDrop then
+                            local part = item:IsA("BasePart") and item or (item:IsA("Model") and (item.PrimaryPart or item:FindFirstChildWhichIsA("BasePart"))) or (item:IsA("Tool") and item:FindFirstChild("Handle"))
+                            if part then
+                                local dist = (part.Position - myRoot.Position).Magnitude
+                                if dist <= maxRange then
+                                    pcall(function()
+                                        firetouchinterest(myRoot, part, 0)
+                                        firetouchinterest(myRoot, part, 1)
+                                        -- X2 KRISTAL: Tarik kristal ganda
+                                        if HubState.Config.Crystal2x or HubState.Config.Crystals2x then
+                                            firetouchinterest(myRoot, part, 0)
+                                            firetouchinterest(myRoot, part, 1)
+                                        end
+                                    end)
+                                    local prompt = item:FindFirstChildOfClass("ProximityPrompt") or part:FindFirstChildOfClass("ProximityPrompt")
+                                    if prompt then
+                                        pcall(function()
+                                            if fireproximityprompt then
+                                                prompt.HoldDuration = 0
+                                                fireproximityprompt(prompt, 0)
+                                            end
+                                        end)
+                                    end
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+
             for _, rem in ipairs(Services.ReplicatedStorage:GetDescendants()) do
                 if rem:IsA("RemoteEvent") then
-                    local rname = rem.Name:lower()
-                    if rname:find("sell") or rname:find("vendor") or rname:find("shop") or rname:find("merchant") then
+                    local rn = rem.Name:lower()
+                    if rn:find("collect") or rn:find("pickup") or rn:find("claimdrop") or rn:find("take") then
                         pcall(function() rem:FireServer() end)
                     end
                 end
@@ -735,98 +1585,454 @@ task.spawn(function()
     end
 end)
 
--- 6. Auto Garden (Tanaman, Bunga & Seeds dengan Prioritas Rarity > Luck Kristal)
-local function getBestGardenSeed()
-    if not LocalPlayer.Backpack then return nil end
-    local seeds = {}
-    local rarityScores = {
-        mythic = 10000,
-        godly = 8000,
-        legendary = 5000,
-        epic = 2000,
-        rare = 1000,
-        crystal = 800,
-        luck = 600,
-        fortune = 500,
-        uncommon = 200,
-        common = 100
-    }
-    for _, item in ipairs(LocalPlayer.Backpack:GetChildren()) do
-        local iname = item.Name:lower()
-        if iname:find("seed") or iname:find("benih") or iname:find("flower") or iname:find("plant") then
-            local score = 100
-            for rk, rv in pairs(rarityScores) do
-                if iname:find(rk) then
-                    score = score + rv
+-- 5. Auto Sell (Jual Hasil Tambang)
+local function performAutoSellNow()
+    local char = LocalPlayer.Character
+    local myRoot = char and char:FindFirstChild("HumanoidRootPart")
+    if not myRoot then return end
+
+    -- Cari Toko / Merchant di Base Camp
+    local merchantObj = nil
+    local searchMerchantNames = {"merchant", "toko", "shop", "seller", "vendor", "sell", "pedagang", "pangkalan", "basecamp"}
+    for _, obj in ipairs(workspace:GetDescendants()) do
+        if obj:IsA("Model") or obj:IsA("BasePart") then
+            local oname = obj.Name:lower()
+            for _, sm in ipairs(searchMerchantNames) do
+                if oname:find(sm) then
+                    merchantObj = obj
                     break
                 end
             end
-            -- Prioritas sekunder: Luck dari Kristal
-            if iname:find("luck") or iname:find("fortune") or iname:find("kristal") or iname:find("crystal") or iname:find("hoki") then
-                score = score + 450
+        end
+        if merchantObj then break end
+    end
+
+    if merchantObj and (HubState.Config.SellTarget == "Teleport Jual & Balik" or HubState.Config.AutoSellPreset == "Teleport Jual & Balik") then
+        local savedPos = myRoot.CFrame
+        local targetPos = merchantObj:IsA("Model") and (merchantObj.PrimaryPart and merchantObj.PrimaryPart.CFrame or merchantObj:GetPivot()) or merchantObj.CFrame
+        myRoot.CFrame = targetPos + Vector3.new(0, 3, 0)
+        task.wait(0.2)
+
+        for _, p in ipairs(merchantObj:GetDescendants()) do
+            if p:IsA("ProximityPrompt") and fireproximityprompt then
+                p.HoldDuration = 0
+                fireproximityprompt(p, 0)
             end
-            table.insert(seeds, {item = item, score = score})
+        end
+        for _, rem in ipairs(Services.ReplicatedStorage:GetDescendants()) do
+            if rem:IsA("RemoteEvent") then
+                local rn = rem.Name:lower()
+                if rn:find("sell") or rn:find("vendor") or rn:find("merchant") then
+                    pcall(function() rem:FireServer() end)
+                end
+            end
+        end
+        task.wait(0.15)
+        myRoot.CFrame = savedPos
+    else
+        for _, rem in ipairs(Services.ReplicatedStorage:GetDescendants()) do
+            if rem:IsA("RemoteEvent") then
+                local rname = rem.Name:lower()
+                if rname:find("sell") or rname:find("vendor") or rname:find("shop") or rname:find("merchant") then
+                    pcall(function() rem:FireServer() end)
+                end
+            end
         end
     end
-    table.sort(seeds, function(a, b) return a.score > b.score end)
-    return seeds[1] and seeds[1].item or nil
+end
+HubState.SellAllItemsNow = performAutoSellNow
+
+local function isBagFull()
+    local cap = LocalPlayer:GetAttribute("MaxCapacity") or LocalPlayer:GetAttribute("Capacity") or LocalPlayer:GetAttribute("MaxWeight")
+    local cur = LocalPlayer:GetAttribute("CurrentWeight") or LocalPlayer:GetAttribute("Weight") or LocalPlayer:GetAttribute("BagWeight")
+    local ls = LocalPlayer:FindFirstChild("leaderstats") or LocalPlayer:FindFirstChild("Data")
+    if ls then
+        local bagVal = ls:FindFirstChild("Bag") or ls:FindFirstChild("Weight") or ls:FindFirstChild("Current")
+        local maxVal = ls:FindFirstChild("MaxBag") or ls:FindFirstChild("Capacity") or ls:FindFirstChild("MaxWeight")
+        if bagVal and maxVal and type(bagVal.Value) == "number" and type(maxVal.Value) == "number" then
+            return bagVal.Value >= maxVal.Value
+        end
+    end
+    if cap and cur and type(cap) == "number" and type(cur) == "number" then
+        return cur >= cap
+    end
+    return false
 end
 
 task.spawn(function()
     while true do
-        task.wait(1.8)
-        if HubState.Config.AutoGarden and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
-            local myRoot = LocalPlayer.Character.HumanoidRootPart
-            local bestSeed = getBestGardenSeed()
+        task.wait(2.5)
+        if HubState.Config.AutoSell or (HubState.Config.AutoSellPreset == "Auto Bag Full" and isBagFull()) then
+            performAutoSellNow()
+        end
+    end
+end)
 
-            -- Panggil event garden dengan prioritas Rarity > Luck Kristal
-            for _, rem in ipairs(Services.ReplicatedStorage:GetDescendants()) do
-                if rem:IsA("RemoteEvent") or rem:IsA("RemoteFunction") then
-                    local n = rem.Name:lower()
-                    if n:find("garden") or n:find("harvest") or n:find("plant") or n:find("flower") or n:find("seed") then
-                        pcall(function()
-                            if rem:IsA("RemoteEvent") then
-                                if bestSeed and (n:find("plant") or n:find("seed")) then
-                                    rem:FireServer(bestSeed)
-                                    rem:FireServer("Plant", bestSeed)
-                                else
-                                    rem:FireServer()
-                                end
-                            else
-                                if bestSeed and (n:find("plant") or n:find("seed")) then
-                                    rem:InvokeServer(bestSeed)
-                                else
-                                    rem:InvokeServer()
+-- 6. Auto Garden / Crystal Farm (Mine Antarctica Spesifik: Best, Rarity, Luck, Mutation, Value, Weight)
+local function getPlayerGardenPlot()
+    local char = LocalPlayer.Character
+    local searchGardenDirs = {
+        workspace:FindFirstChild("CrystalGarden"),
+        workspace:FindFirstChild("Crystal Garden"),
+        workspace:FindFirstChild("CrystalFarm"),
+        workspace:FindFirstChild("Crystal Farm"),
+        workspace:FindFirstChild("CrystalPlots"),
+        workspace:FindFirstChild("Crystal Plots"),
+        workspace:FindFirstChild("CrystalBeds"),
+        workspace:FindFirstChild("Garden"),
+        workspace:FindFirstChild("Gardens"),
+        workspace:FindFirstChild("Farms"),
+        workspace:FindFirstChild("Plots"),
+        workspace:FindFirstChild("Kebun"),
+        workspace:FindFirstChild("BaseCamp"),
+        workspace:FindFirstChild("Pangkalan"),
+        workspace
+    }
+
+    local myPlot = nil
+    for _, folder in ipairs(searchGardenDirs) do
+        if folder then
+            local children = (folder == workspace) and folder:GetChildren() or folder:GetDescendants()
+            for _, obj in ipairs(children) do
+                local oname = obj.Name:lower()
+                if oname:find("garden") or oname:find("kebun") or oname:find("plot") or oname:find("farm") or oname:find("bed") then
+                    -- Periksa apakah ini plot milik LocalPlayer
+                    local ownerVal = obj:FindFirstChild("Owner") or obj:FindFirstChild("Player") or obj:FindFirstChild("UserId")
+                    if ownerVal and (tostring(ownerVal.Value) == LocalPlayer.Name or tostring(ownerVal.Value) == tostring(LocalPlayer.UserId)) then
+                        return obj
+                    end
+                    local attrOwner = obj:GetAttribute("Owner") or obj:GetAttribute("UserId")
+                    if attrOwner and (tostring(attrOwner) == LocalPlayer.Name or tostring(attrOwner) == tostring(LocalPlayer.UserId)) then
+                        return obj
+                    end
+                    if oname:find(LocalPlayer.Name:lower()) then
+                        return obj
+                    end
+                    if not myPlot and (obj:FindFirstChildOfClass("TouchTransmitter") or obj:FindFirstChildOfClass("ProximityPrompt")) then
+                        myPlot = obj
+                    end
+                end
+            end
+        end
+    end
+    return myPlot
+end
+
+local function buyGardenSpace()
+    for _, rem in ipairs(Services.ReplicatedStorage:GetDescendants()) do
+        if rem:IsA("RemoteEvent") or rem:IsA("RemoteFunction") then
+            local n = rem.Name:lower()
+            if n:find("buyspace") or n:find("buyslot") or n:find("expandgarden") or n:find("upgradegarden") or n:find("purchaseslot") or (n:find("garden") and (n:find("slot") or n:find("buy") or n:find("space"))) then
+                pcall(function()
+                    if rem:IsA("RemoteEvent") then rem:FireServer() else rem:InvokeServer() end
+                end)
+            end
+        end
+    end
+    pcall(function()
+        if LocalPlayer:FindFirstChild("PlayerGui") then
+            for _, gui in ipairs(LocalPlayer.PlayerGui:GetDescendants()) do
+                if gui:IsA("TextButton") or gui:IsA("ImageButton") then
+                    local gn = gui.Name:lower()
+                    if (gn:find("garden") or gn:find("kebun")) and (gn:find("buy") or gn:find("slot") or gn:find("space") or gn:find("expand")) then
+                        if firesignal then firesignal(gui.Activated) end
+                    end
+                end
+            end
+        end
+    end)
+end
+HubState.BuyGardenSpace = buyGardenSpace
+
+local function getBestGardenCrystal(sortMode)
+    sortMode = sortMode or HubState.Config.AutoGardenPreset or "Best"
+    local crystals = {}
+    local containers = {LocalPlayer:FindFirstChild("Backpack"), LocalPlayer.Character}
+
+    local rarityScores = {
+        zenith = 100000,
+        transcendent = 60000,
+        celestial = 40000,
+        divine = 30000,
+        godly = 25000,
+        secret = 20000,
+        exotic = 15000,
+        mythic = 10000,
+        legendary = 5000,
+        epic = 2500,
+        rare = 1200,
+        uncommon = 500,
+        common = 100
+    }
+
+    local mutationKeywords = {
+        "aurora", "blood moon", "blood", "frozen", "radiant", "gilded",
+        "void", "cosmic", "shadow", "mutation", "mutated", "shiny", "spectral",
+        "corrupted", "rainbow", "electric", "nebula", "abyssal"
+    }
+
+    local ignoredKeywords = {
+        "pickaxe", "beliung", "axe", "radar", "bomb", "dynamite", "dinamit",
+        "potion", "jetpack", "backpack", "ransel", "compass", "lamp"
+    }
+
+    for _, container in ipairs(containers) do
+        if container then
+            for _, item in ipairs(container:GetChildren()) do
+                local iname = item.Name:lower()
+
+                -- Pastikan bukan utility tools/pickaxe
+                local isIgnored = false
+                for _, ign in ipairs(ignoredKeywords) do
+                    if iname:find(ign) then
+                        isIgnored = true
+                        break
+                    end
+                end
+
+                if not isIgnored then
+                    local isCrystal = false
+                    local rarityScore = 0
+
+                    -- Cek atribut dan ValueBase untuk tier Rarity sesungguhnya
+                    pcall(function()
+                        local attrRarity = item:GetAttribute("Rarity") or item:GetAttribute("Tier") or item:GetAttribute("Kelangkaan")
+                        if attrRarity and type(attrRarity) == "string" then
+                            local an = attrRarity:lower()
+                            for rk, rv in pairs(rarityScores) do
+                                if an:find(rk) then
+                                    isCrystal = true
+                                    if rv > rarityScore then rarityScore = rv end
                                 end
                             end
-                        end)
-                    end
-                end
-            end
-
-            -- Touch farm plots dengan prioritas petak langka/kristal
-            local gardenFolder = workspace:FindFirstChild("Garden") or workspace:FindFirstChild("Farms") or workspace:FindFirstChild("Plants") or workspace:FindFirstChild("Crops")
-            if gardenFolder then
-                local plots = {}
-                for _, plot in ipairs(gardenFolder:GetDescendants()) do
-                    if plot:IsA("TouchTransmitter") and plot.Parent and plot.Parent:IsA("BasePart") then
-                        local pname = plot.Parent.Name:lower()
-                        local priority = 10
-                        if pname:find("mythic") then priority = 1000
-                        elseif pname:find("legendary") then priority = 500
-                        elseif pname:find("crystal") or pname:find("luck") then priority = 300
                         end
-                        table.insert(plots, {part = plot.Parent, p = priority})
+                        local valRarity = item:FindFirstChild("Rarity") or item:FindFirstChild("Tier")
+                        if valRarity and valRarity:IsA("ValueBase") and type(valRarity.Value) == "string" then
+                            local vn = valRarity.Value:lower()
+                            for rk, rv in pairs(rarityScores) do
+                                if vn:find(rk) then
+                                    isCrystal = true
+                                    if rv > rarityScore then rarityScore = rv end
+                                end
+                            end
+                        end
+                    end)
+
+                    for rk, rv in pairs(rarityScores) do
+                        if iname:find(rk) then
+                            isCrystal = true
+                            if rv > rarityScore then
+                                rarityScore = rv
+                            end
+                        end
+                    end
+
+                    if iname:find("crystal") or iname:find("kristal") or iname:find("shard") or iname:find("gem")
+                       or iname:find("ore") or iname:find("emerald") or iname:find("ruby") or iname:find("sapphire")
+                       or iname:find("diamond") or iname:find("berlian") or iname:find("obsidian")
+                       or iname:find("topaz") or iname:find("amethyst") then
+                        isCrystal = true
+                        rarityScore = rarityScore + 200
+                    end
+
+                    if isCrystal then
+                        local luckBonus = 0
+                        if iname:find("luck") or iname:find("fortune") or iname:find("hoki") or iname:find("keberuntungan") then
+                            luckBonus = 800
+                        end
+                        pcall(function()
+                            local luckVal = item:GetAttribute("Luck") or item:GetAttribute("LuckMultiplier")
+                                          or (item:FindFirstChild("Luck") and item.Luck.Value)
+                                          or (item:FindFirstChild("Multiplier") and item.Multiplier.Value)
+                            if type(luckVal) == "number" then
+                                luckBonus = luckBonus + math.floor(luckVal * 100)
+                            end
+                        end)
+
+                        local mutationBonus = 0
+                        for _, mut in ipairs(mutationKeywords) do
+                            if iname:find(mut) then
+                                mutationBonus = mutationBonus + 25000
+                                break
+                            end
+                        end
+                        pcall(function()
+                            if item:GetAttribute("Mutation") or item:GetAttribute("IsMutated") or item:FindFirstChild("Mutation") then
+                                mutationBonus = mutationBonus + 25000
+                            end
+                        end)
+
+                        local valueScore = 100
+                        pcall(function()
+                            local val = item:GetAttribute("Value") or item:GetAttribute("Price") or (item:FindFirstChild("Value") and item.Value.Value)
+                            if type(val) == "number" then valueScore = val end
+                        end)
+
+                        local weightScore = 10
+                        pcall(function()
+                            local w = item:GetAttribute("Weight") or item:GetAttribute("Berat") or (item:FindFirstChild("Weight") and item.Weight.Value)
+                            if type(w) == "number" then weightScore = w end
+                        end)
+
+                        -- Hitung skor berdasarkan mode sortir Mine Antarctica (Barrage Hub Specification)
+                        local finalScore = 0
+                        if sortMode == "Rarity" then
+                            finalScore = rarityScore * 10 + luckBonus
+                        elseif sortMode == "Luck" then
+                            finalScore = luckBonus * 100 + rarityScore
+                        elseif sortMode == "Mutation" then
+                            finalScore = mutationBonus * 10 + rarityScore + luckBonus
+                        elseif sortMode == "Value" then
+                            finalScore = valueScore + (rarityScore * 2)
+                        elseif sortMode == "Weight" then
+                            finalScore = weightScore * 100 + rarityScore
+                        else -- "Best" (Default: Rarity > Mutation > Luck > Value)
+                            finalScore = rarityScore + mutationBonus + luckBonus + (valueScore / 100)
+                        end
+
+                        table.insert(crystals, {item = item, score = finalScore, name = item.Name})
                     end
                 end
-                table.sort(plots, function(a, b) return a.p > b.p end)
-                for _, pData in ipairs(plots) do
-                    pcall(function()
-                        firetouchinterest(myRoot, pData.part, 0)
-                        firetouchinterest(myRoot, pData.part, 1)
-                    end)
+            end
+        end
+    end
+
+    table.sort(crystals, function(a, b) return a.score > b.score end)
+    return crystals[1] and crystals[1].item or nil
+end
+local getBestGardenSeed = getBestGardenCrystal
+
+local function performAutoGarden(action)
+    action = action or "all"
+    if not LocalPlayer.Character or not LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then return end
+    local myRoot = LocalPlayer.Character.HumanoidRootPart
+    local bestCrystal = getBestGardenCrystal(HubState.Config.AutoGardenPreset)
+    local plot = getPlayerGardenPlot()
+
+    -- Pola Teleport CFrame: Kebun berada di Base Camp (Pangkalan), simpan koordinat gunung
+    local savedPos = nil
+    if plot then
+        local plotPos = plot:IsA("Model") and (plot.PrimaryPart and plot.PrimaryPart.Position or plot:GetPivot().Position) or plot.Position
+        if (plotPos - myRoot.Position).Magnitude > 60 then
+            savedPos = myRoot.CFrame
+            myRoot.CFrame = CFrame.new(plotPos + Vector3.new(0, 3.5, 0))
+            task.wait(0.25) -- Replikasi posisi karakter di kebun kepada server
+        end
+    end
+
+    -- 1. Beli Ruang Kebun jika tindakan mengizinkan (Mine Antarctica Garden Space Expansion)
+    if action == "all" or action == "buyspace" or HubState.Config.GardenAction == "Buy Space, Fill Best" or HubState.Config.GardenAction == "Buy Garden Space Only" then
+        buyGardenSpace()
+        if action == "buyspace" or HubState.Config.GardenAction == "Buy Garden Space Only" then
+            if savedPos then myRoot.CFrame = savedPos end
+            return
+        end
+    end
+
+    -- Auto equip kristal terbaik saat aksi penanaman
+    if (action == "all" or action == "plant") and bestCrystal and bestCrystal:IsA("Tool") and bestCrystal.Parent == LocalPlayer.Backpack then
+        pcall(function()
+            local hum = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+            if hum then hum:EquipTool(bestCrystal) end
+        end)
+    end
+
+    -- 2. Pemicu ProximityPrompt & ClickDetector pada Petak Kebun
+    if plot then
+        for _, p in ipairs(plot:GetDescendants()) do
+            if p:IsA("ProximityPrompt") and fireproximityprompt then
+                p.HoldDuration = 0
+                fireproximityprompt(p, 0)
+            end
+            if p:IsA("ClickDetector") and fireclickdetector then
+                fireclickdetector(p)
+            end
+            if p:IsA("BasePart") then
+                pcall(function()
+                    firetouchinterest(myRoot, p, 0)
+                    firetouchinterest(myRoot, p, 1)
+                    if bestCrystal and bestCrystal:FindFirstChild("Handle") then
+                        firetouchinterest(bestCrystal.Handle, p, 0)
+                        firetouchinterest(bestCrystal.Handle, p, 1)
+                    end
+                end)
+            end
+        end
+    end
+
+    -- 3. Panggil RemoteEvent / RemoteFunction Crystal Garden (Harvest & Plant)
+    for _, rem in ipairs(Services.ReplicatedStorage:GetDescendants()) do
+        if rem:IsA("RemoteEvent") or rem:IsA("RemoteFunction") then
+            local n = rem.Name:lower()
+            if n:find("garden") or n:find("crystalgarden") or n:find("crystal") or n:find("kristal")
+               or n:find("harvest") or n:find("plant") or n:find("place") or n:find("flower")
+               or n:find("seed") or n:find("kebun") or n:find("panen") or n:find("tanam")
+               or n:find("deposit") or n:find("withdraw") then
+                pcall(function()
+                    if rem:IsA("RemoteEvent") then
+                        if (action == "all" or action == "plant") and bestCrystal then
+                            rem:FireServer(bestCrystal)
+                            rem:FireServer("Plant", bestCrystal)
+                            rem:FireServer("Place", bestCrystal)
+                            rem:FireServer("Deposit", bestCrystal)
+                            rem:FireServer("PlantCrystal", bestCrystal)
+                            rem:FireServer("PlaceCrystal", bestCrystal)
+                            rem:FireServer(bestCrystal.Name)
+                            if plot then rem:FireServer(plot, bestCrystal) end
+                        end
+                        if (action == "all" or action == "harvest") then
+                            rem:FireServer()
+                            rem:FireServer("HarvestAll")
+                            rem:FireServer("Harvest")
+                            rem:FireServer("HarvestCrystal")
+                            rem:FireServer("CollectGarden")
+                            rem:FireServer("TakeAll")
+                            rem:FireServer("ClearGarden")
+                            if plot then rem:FireServer(plot) end
+                        end
+                    else
+                        if (action == "all" or action == "plant") and bestCrystal then
+                            rem:InvokeServer(bestCrystal)
+                            rem:InvokeServer("Plant", bestCrystal)
+                            rem:InvokeServer("Place", bestCrystal)
+                        end
+                        if (action == "all" or action == "harvest") then
+                            rem:InvokeServer()
+                            rem:InvokeServer("Harvest")
+                        end
+                    end
+                end)
+            end
+        end
+    end
+
+    -- 4. Pemicu Tombol Garden GUI di PlayerGui
+    pcall(function()
+        if LocalPlayer:FindFirstChild("PlayerGui") then
+            for _, gui in ipairs(LocalPlayer.PlayerGui:GetDescendants()) do
+                if gui:IsA("TextButton") or gui:IsA("ImageButton") then
+                    local gn = gui.Name:lower()
+                    if gn:find("garden") or gn:find("kebun") or gn:find("harvest") or gn:find("panen") or gn:find("plant") or gn:find("tanam") or gn:find("deposit") then
+                        if firesignal then firesignal(gui.Activated) end
+                    end
                 end
             end
+        end
+    end)
+
+    task.wait(0.2)
+    -- Kembalikan karakter ke posisi gunung tempat menambang sebelumnya
+    if savedPos and myRoot and myRoot.Parent then
+        myRoot.CFrame = savedPos
+    end
+end
+HubState.PerformGarden = performAutoGarden
+
+task.spawn(function()
+    while true do
+        task.wait(1.8)
+        if HubState.Config.AutoGarden then
+            performAutoGarden("all")
         end
     end
 end)
@@ -869,11 +2075,35 @@ task.spawn(function()
     end
 end)
 
--- 9. Auto Items (Beli Bom, Radar, Buka Chests)
+-- 9. Auto Items (Auto Gunakan Radar, Beli Bom, Buka Chests)
 task.spawn(function()
     while true do
-        task.wait(4)
-        if HubState.Config.AutoItems then
+        task.wait(3.5)
+        if HubState.Config.AutoItems and LocalPlayer.Character then
+            pcall(function()
+                local hum = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+                local backpack = LocalPlayer:FindFirstChild("Backpack")
+                -- 1. Auto Aktifkan Radar di Hotbar (Slot 2-5: Radar Batu Besar, Radar Kristal 99x, Radar Meteor)
+                local containers = {LocalPlayer.Character, backpack}
+                for _, cont in ipairs(containers) do
+                    if cont then
+                        for _, tool in ipairs(cont:GetChildren()) do
+                            if tool:IsA("Tool") and tool.Name:lower():find("radar") then
+                                if cont == backpack and hum then
+                                    hum:EquipTool(tool)
+                                    task.wait(0.1)
+                                end
+                                tool:Activate()
+                                for _, rem in ipairs(tool:GetDescendants()) do
+                                    if rem:IsA("RemoteEvent") then rem:FireServer() end
+                                end
+                            end
+                        end
+                    end
+                end
+            end)
+
+            -- 2. Beli perlengkapan utility & buka chest
             for _, rem in ipairs(Services.ReplicatedStorage:GetDescendants()) do
                 if rem:IsA("RemoteEvent") or rem:IsA("RemoteFunction") then
                     local n = rem.Name:lower()
@@ -927,71 +2157,210 @@ end)
 -- 12. Player Mods: Infinite Jetpack & Anti-Freeze (Warmth Lock)
 Services.RunService.Heartbeat:Connect(function()
     if not LocalPlayer.Character then return end
-    if HubState.Config.InfiniteJetpack then
+    if HubState.Config.InfiniteJetpack or (HubState.Config.PlayerModsEnabled and HubState.Config.PlayerModsList["Infinite Jetpack"]) then
         for _, v in ipairs(LocalPlayer.Character:GetDescendants()) do
             if v:IsA("NumberValue") and (v.Name:lower():find("fuel") or v.Name:lower():find("jetpack")) then
                 v.Value = 100
             end
         end
     end
-    if HubState.Config.AntiFreeze then
+    if HubState.Config.AntiFreeze or (HubState.Config.PlayerModsEnabled and HubState.Config.PlayerModsList["Anti Freeze"]) then
         for _, v in ipairs(LocalPlayer.Character:GetDescendants()) do
             if v:IsA("NumberValue") and (v.Name:lower():find("warmth") or v.Name:lower():find("temp") or v.Name:lower():find("cold")) then
                 v.Value = 100
             end
         end
+        pcall(function()
+            LocalPlayer:SetAttribute("Warmth", 100)
+            LocalPlayer:SetAttribute("Temperature", 100)
+            LocalPlayer:SetAttribute("Freeze", 0)
+        end)
     end
 end)
 
--- 13. Player Mods: Anti-Ragdoll & No Fall Damage
+-- 13. Player Mods: Anti-Ragdoll & No Fall Damage (Deep Enforcer)
+local function hookAntiRagdoll(char)
+    if not char then return end
+    local hum = char:WaitForChild("Humanoid", 3)
+    if not hum then return end
+    hum.StateChanged:Connect(function(oldState, newState)
+        if HubState.Config.AntiRagdoll or (HubState.Config.PlayerModsEnabled and HubState.Config.PlayerModsList["Anti Ragdoll"]) or (HubState.Config.MiningModsEnabled and HubState.Config.MiningModsList["Anti Ragdoll"]) then
+            if newState == Enum.HumanoidStateType.Ragdoll or newState == Enum.HumanoidStateType.FallingDown or newState == Enum.HumanoidStateType.PlatformStanding then
+                hum:ChangeState(Enum.HumanoidStateType.GettingUp)
+            end
+        end
+    end)
+end
+
+if LocalPlayer.Character then hookAntiRagdoll(LocalPlayer.Character) end
+LocalPlayer.CharacterAdded:Connect(hookAntiRagdoll)
+
 Services.RunService.Stepped:Connect(function()
     local char = LocalPlayer.Character
     if char then
         local hum = char:FindFirstChildOfClass("Humanoid")
+        local root = char:FindFirstChild("HumanoidRootPart")
         if hum then
-            if HubState.Config.AntiRagdoll then
+            local isAntiRagdoll = HubState.Config.AntiRagdoll or (HubState.Config.PlayerModsEnabled and HubState.Config.PlayerModsList["Anti Ragdoll"]) or (HubState.Config.MiningModsEnabled and HubState.Config.MiningModsList["Anti Ragdoll"])
+            if isAntiRagdoll then
                 hum:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
                 hum:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
+                hum:SetStateEnabled(Enum.HumanoidStateType.PlatformStanding, false)
+                if hum.PlatformStand then hum.PlatformStand = false end
+                if hum.Sit then hum.Sit = false end
+
+                for _, child in ipairs(char:GetChildren()) do
+                    if child:IsA("Script") or child:IsA("LocalScript") then
+                        local cn = child.Name:lower()
+                        if cn:find("ragdoll") or cn:find("fall") or cn:find("knockback") or cn:find("trip") or cn:find("stun") or cn:find("slip") then
+                            pcall(function() child.Disabled = true end)
+                        end
+                    end
+                end
             end
-            if HubState.Config.NoFallDamage and hum.FloorMaterial ~= Enum.Material.Air and char:FindFirstChild("HumanoidRootPart") then
-                local vel = char.HumanoidRootPart.Velocity
-                char.HumanoidRootPart.Velocity = Vector3.new(vel.X, math.clamp(vel.Y, -40, 40), vel.Z)
+
+            -- No Fall Damage (Klem Kecepatan Jatuh Sebelum Menyentuh Tanah)
+            local isNoFall = HubState.Config.NoFallDamage or (HubState.Config.PlayerModsEnabled and HubState.Config.PlayerModsList["No Fall Damage"]) or (HubState.Config.MiningModsEnabled and HubState.Config.MiningModsList["Tidak Ada Kerusakan Jatuh"])
+            if isNoFall and root then
+                local vel = root.AssemblyLinearVelocity
+                if vel.Y < -30 then
+                    root.AssemblyLinearVelocity = Vector3.new(vel.X, -30, vel.Z)
+                end
+                if root.Velocity.Y < -30 then
+                    root.Velocity = Vector3.new(root.Velocity.X, -30, root.Velocity.Z)
+                end
             end
         end
     end
 end)
 
--- 14. Crystal & Boulder ESP
+-- 14. Crystal & Boulder ESP (Live Background Loop + Billboard Text)
 local crystalEspHighlights = {}
-local function updateCrystalESP(enabled)
-    if not enabled then
-        for _, h in pairs(crystalEspHighlights) do
-            if h and h.Parent then h:Destroy() end
-        end
-        crystalEspHighlights = {}
-        return
-    end
+local crystalEspBillboards = {}
 
-    local folders = { workspace:FindFirstChild("Ores"), workspace:FindFirstChild("Boulders"), workspace:FindFirstChild("Crystals"), workspace }
-    for _, folder in ipairs(folders) do
-        if folder then
-            for _, obj in ipairs(folder:GetChildren()) do
-                local name = obj.Name:lower()
-                if (name:find("boulder") or name:find("crystal") or name:find("ore") or name:find("meteor")) and not crystalEspHighlights[obj] then
-                    local h = Instance.new("Highlight")
-                    h.Name = "AgyCrystalESP"
-                    h.Adornee = obj
-                    h.FillColor = name:find("meteor") and Color3.fromRGB(249, 115, 22) or Color3.fromRGB(56, 189, 248)
-                    h.FillTransparency = 0.4
-                    h.OutlineColor = Color3.fromRGB(255, 255, 255)
-                    h.Parent = obj
-                    crystalEspHighlights[obj] = h
+local function clearCrystalESP()
+    for _, h in pairs(crystalEspHighlights) do
+        if h and h.Parent then pcall(function() h:Destroy() end) end
+    end
+    for _, b in pairs(crystalEspBillboards) do
+        if b and b.Parent then pcall(function() b:Destroy() end) end
+    end
+    crystalEspHighlights = {}
+    crystalEspBillboards = {}
+end
+
+task.spawn(function()
+    while true do
+        task.wait(1.5)
+        if HubState.Config.CrystalEsp and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+            local myRoot = LocalPlayer.Character.HumanoidRootPart
+            local validObjs = {}
+            local maxEspRange = HubState.Config.EspRange or 1000
+
+            local searchList = {
+                workspace:FindFirstChild("Ores"),
+                workspace:FindFirstChild("Boulders"),
+                workspace:FindFirstChild("Crystals"),
+                workspace:FindFirstChild("Nodes"),
+                workspace:FindFirstChild("Map"),
+                workspace:FindFirstChild("Debris"),
+                workspace:FindFirstChild("Terrain"),
+                workspace
+            }
+
+            for _, folder in ipairs(searchList) do
+                if folder then
+                    local children = (folder == workspace) and folder:GetChildren() or folder:GetDescendants()
+                    for _, obj in ipairs(children) do
+                        local name = obj.Name:lower()
+                        if name:find("crystal") or name:find("boulder") or name:find("ore") or name:find("meteor") or name:find("rock") or name:find("deposit") or obj:FindFirstChildOfClass("ProximityPrompt") then
+                            local part = obj:IsA("BasePart") and obj or (obj:IsA("Model") and (obj.PrimaryPart or obj:FindFirstChildWhichIsA("BasePart")))
+                            if part then
+                                local dist = (part.Position - myRoot.Position).Magnitude
+                                if dist < maxEspRange then
+                                    local rScore, rLabel, rColor = getObjectRarity(obj)
+                                    table.insert(validObjs, {obj = obj, part = part, name = obj.Name, dist = math.floor(dist), label = rLabel, color = rColor, score = rScore})
+                                end
+                            end
+                        end
+                    end
                 end
+            end
+
+            table.sort(validObjs, function(a, b) return a.score > b.score end)
+
+            local currentSet = {}
+            for i = 1, math.min(#validObjs, 40) do
+                local data = validObjs[i]
+                currentSet[data.obj] = true
+
+                -- 1. Highlight dengan Warna Kelangkaan Spesifik
+                if not crystalEspHighlights[data.obj] or not crystalEspHighlights[data.obj].Parent then
+                    local h = Instance.new("Highlight")
+                    h.Name = "AGY_CrystalESP"
+                    h.FillColor = data.color
+                    h.OutlineColor = Color3.fromRGB(255, 255, 255)
+                    h.FillTransparency = 0.35
+                    h.OutlineTransparency = 0
+                    h.Adornee = data.obj
+                    pcall(function() h.Parent = data.obj end)
+                    crystalEspHighlights[data.obj] = h
+                else
+                    crystalEspHighlights[data.obj].FillColor = data.color
+                end
+
+                -- 2. BillboardGui dengan Badge Tier & Jarak
+                if not crystalEspBillboards[data.obj] or not crystalEspBillboards[data.obj].Parent then
+                    local bg = Instance.new("BillboardGui")
+                    bg.Name = "AGY_CrystalBB"
+                    bg.Adornee = data.part
+                    bg.Size = UDim2.new(0, 150, 0, 36)
+                    bg.StudsOffset = Vector3.new(0, 3.2, 0)
+                    bg.AlwaysOnTop = true
+
+                    local lbl = Instance.new("TextLabel")
+                    lbl.Name = "Tag"
+                    lbl.Size = UDim2.new(1, 0, 1, 0)
+                    lbl.BackgroundTransparency = 1
+                    lbl.Text = string.format("[%s] %s\n%dm", data.label, data.name, data.dist)
+                    lbl.TextColor3 = data.color
+                    lbl.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+                    lbl.TextStrokeTransparency = 0.2
+                    lbl.Font = Enum.Font.GothamBold
+                    lbl.TextSize = 11
+                    lbl.Parent = bg
+
+                    pcall(function() bg.Parent = data.part end)
+                    crystalEspBillboards[data.obj] = bg
+                else
+                    local tag = crystalEspBillboards[data.obj]:FindFirstChild("Tag")
+                    if tag then
+                        tag.Text = string.format("[%s] %s\n%dm", data.label, data.name, data.dist)
+                        tag.TextColor3 = data.color
+                    end
+                end
+            end
+
+            -- Bersihkan entri lama di luar jangkauan
+            for obj, h in pairs(crystalEspHighlights) do
+                if not currentSet[obj] then
+                    if h and h.Parent then pcall(function() h:Destroy() end) end
+                    crystalEspHighlights[obj] = nil
+                end
+            end
+            for obj, b in pairs(crystalEspBillboards) do
+                if not currentSet[obj] then
+                    if b and b.Parent then pcall(function() b:Destroy() end) end
+                    crystalEspBillboards[obj] = nil
+                end
+            end
+        else
+            if next(crystalEspHighlights) ~= nil or next(crystalEspBillboards) ~= nil then
+                clearCrystalESP()
             end
         end
     end
-end
-
+end)
 
 -- 9. USER INTERFACE: BARRAGE HUB (EXACT 1:1 REPLICA)
 -- ==============================================================================
@@ -1398,7 +2767,7 @@ local function createCard(parent, title, initialStatus)
     StatusVal.Text = initialStatus or "[IDLE]"
     StatusVal.Font = Enum.Font.GothamMedium
     StatusVal.TextSize = 11
-    StatusVal.TextColor3 = Color3.fromRGB(200, 180, 185)
+    StatusVal.TextColor3 = (initialStatus and initialStatus:find("%[ACTIVE%]")) and Color3.fromRGB(74, 222, 128) or Color3.fromRGB(200, 180, 185)
     StatusVal.TextXAlignment = Enum.TextXAlignment.Left
     StatusVal.Parent = StatusRow
 
@@ -1408,12 +2777,19 @@ end
 local function addPresetDropdown(parent, title, options, defaultVal, callback)
     local Frame = Instance.new("Frame")
     Frame.Size = UDim2.new(1, 0, 0, 48)
+    Frame.AutomaticSize = Enum.AutomaticSize.Y
     Frame.BackgroundTransparency = 1
     Frame.Parent = parent
+
+    local FrameLayout = Instance.new("UIListLayout")
+    FrameLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    FrameLayout.Padding = UDim.new(0, 3)
+    FrameLayout.Parent = Frame
 
     local LabelRow = Instance.new("Frame")
     LabelRow.Size = UDim2.new(1, 0, 0, 16)
     LabelRow.BackgroundTransparency = 1
+    LabelRow.LayoutOrder = 1
     LabelRow.Parent = Frame
 
     local Label = Instance.new("TextLabel")
@@ -1438,13 +2814,13 @@ local function addPresetDropdown(parent, title, options, defaultVal, callback)
 
     local DropBtn = Instance.new("TextButton")
     DropBtn.Size = UDim2.new(1, 0, 0, 28)
-    DropBtn.Position = UDim2.new(0, 0, 0, 18)
     DropBtn.BackgroundColor3 = Color3.fromRGB(34, 25, 30)
     DropBtn.Text = "  " .. tostring(defaultVal)
     DropBtn.Font = Enum.Font.GothamMedium
     DropBtn.TextSize = 11
     DropBtn.TextColor3 = Color3.fromRGB(240, 240, 245)
     DropBtn.TextXAlignment = Enum.TextXAlignment.Left
+    DropBtn.LayoutOrder = 2
     DropBtn.Parent = Frame
 
     local DropCorner = Instance.new("UICorner")
@@ -1466,18 +2842,72 @@ local function addPresetDropdown(parent, title, options, defaultVal, callback)
     Arrow.TextColor3 = Color3.fromRGB(160, 140, 145)
     Arrow.Parent = DropBtn
 
-    local currentIdx = 1
-    for i, opt in ipairs(options) do
-        if opt == defaultVal then currentIdx = i break end
+    local OptionsContainer = Instance.new("Frame")
+    OptionsContainer.Size = UDim2.new(1, 0, 0, 0)
+    OptionsContainer.AutomaticSize = Enum.AutomaticSize.Y
+    OptionsContainer.BackgroundColor3 = Color3.fromRGB(28, 20, 24)
+    OptionsContainer.Visible = false
+    OptionsContainer.LayoutOrder = 3
+    OptionsContainer.Parent = Frame
+
+    local OptCorner = Instance.new("UICorner")
+    OptCorner.CornerRadius = UDim.new(0, 5)
+    OptCorner.Parent = OptionsContainer
+
+    local OptStroke = Instance.new("UIStroke")
+    OptStroke.Thickness = 1
+    OptStroke.Color = Color3.fromRGB(75, 24, 34)
+    OptStroke.Parent = OptionsContainer
+
+    local OptLayout = Instance.new("UIListLayout")
+    OptLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    OptLayout.Padding = UDim.new(0, 2)
+    OptLayout.Parent = OptionsContainer
+
+    local OptPad = Instance.new("UIPadding")
+    OptPad.PaddingTop = UDim.new(0, 4)
+    OptPad.PaddingBottom = UDim.new(0, 4)
+    OptPad.PaddingLeft = UDim.new(0, 4)
+    OptPad.PaddingRight = UDim.new(0, 4)
+    OptPad.Parent = OptionsContainer
+
+    local isOpen = false
+    for _, opt in ipairs(options) do
+        local OptBtn = Instance.new("TextButton")
+        OptBtn.Size = UDim2.new(1, 0, 0, 24)
+        OptBtn.BackgroundColor3 = (opt == defaultVal) and Color3.fromRGB(65, 20, 28) or Color3.fromRGB(34, 25, 30)
+        OptBtn.Text = "  " .. tostring(opt)
+        OptBtn.Font = Enum.Font.Gotham
+        OptBtn.TextSize = 11
+        OptBtn.TextColor3 = (opt == defaultVal) and Color3.fromRGB(225, 40, 50) or Color3.fromRGB(230, 230, 235)
+        OptBtn.TextXAlignment = Enum.TextXAlignment.Left
+        OptBtn.Parent = OptionsContainer
+
+        local BtnCorner = Instance.new("UICorner")
+        BtnCorner.CornerRadius = UDim.new(0, 4)
+        BtnCorner.Parent = OptBtn
+
+        OptBtn.MouseButton1Click:Connect(function()
+            DropBtn.Text = "  " .. tostring(opt)
+            isOpen = false
+            OptionsContainer.Visible = false
+            Arrow.Text = "v"
+            for _, ch in ipairs(OptionsContainer:GetChildren()) do
+                if ch:IsA("TextButton") then
+                    local isSelected = (ch.Text == "  " .. tostring(opt))
+                    ch.BackgroundColor3 = isSelected and Color3.fromRGB(65, 20, 28) or Color3.fromRGB(34, 25, 30)
+                    ch.TextColor3 = isSelected and Color3.fromRGB(225, 40, 50) or Color3.fromRGB(230, 230, 235)
+                end
+            end
+            if callback then callback(opt) end
+            saveConfig()
+        end)
     end
 
     DropBtn.MouseButton1Click:Connect(function()
-        currentIdx = currentIdx + 1
-        if currentIdx > #options then currentIdx = 1 end
-        local choice = options[currentIdx]
-        DropBtn.Text = "  " .. choice
-        if callback then callback(choice) end
-        saveConfig()
+        isOpen = not isOpen
+        OptionsContainer.Visible = isOpen
+        Arrow.Text = isOpen and "^" or "v"
     end)
 end
 
@@ -1551,12 +2981,19 @@ end
 local function addMultiSelectDropdown(parent, title, options, selectedDict, callback)
     local Frame = Instance.new("Frame")
     Frame.Size = UDim2.new(1, 0, 0, 48)
+    Frame.AutomaticSize = Enum.AutomaticSize.Y
     Frame.BackgroundTransparency = 1
     Frame.Parent = parent
+
+    local FrameLayout = Instance.new("UIListLayout")
+    FrameLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    FrameLayout.Padding = UDim.new(0, 3)
+    FrameLayout.Parent = Frame
 
     local LabelRow = Instance.new("Frame")
     LabelRow.Size = UDim2.new(1, 0, 0, 16)
     LabelRow.BackgroundTransparency = 1
+    LabelRow.LayoutOrder = 1
     LabelRow.Parent = Frame
 
     local Label = Instance.new("TextLabel")
@@ -1581,12 +3018,12 @@ local function addMultiSelectDropdown(parent, title, options, selectedDict, call
 
     local DropBtn = Instance.new("TextButton")
     DropBtn.Size = UDim2.new(1, 0, 0, 28)
-    DropBtn.Position = UDim2.new(0, 0, 0, 18)
     DropBtn.BackgroundColor3 = Color3.fromRGB(34, 25, 30)
     DropBtn.Font = Enum.Font.GothamMedium
     DropBtn.TextSize = 10
     DropBtn.TextColor3 = Color3.fromRGB(240, 240, 245)
     DropBtn.TextXAlignment = Enum.TextXAlignment.Left
+    DropBtn.LayoutOrder = 2
     DropBtn.Parent = Frame
 
     local function getSummary()
@@ -1596,7 +3033,7 @@ local function addMultiSelectDropdown(parent, title, options, selectedDict, call
                 table.insert(active, opt)
             end
         end
-        if #active == 0 then return "  (None)" end
+        if #active == 0 then return "  (None Selected)" end
         local txt = table.concat(active, ", ")
         if #txt > 36 then
             return "  " .. txt:sub(1, 33) .. "..."
@@ -1625,15 +3062,67 @@ local function addMultiSelectDropdown(parent, title, options, selectedDict, call
     Arrow.TextColor3 = Color3.fromRGB(160, 140, 145)
     Arrow.Parent = DropBtn
 
-    local cycleIdx = 1
+    local OptionsContainer = Instance.new("Frame")
+    OptionsContainer.Size = UDim2.new(1, 0, 0, 0)
+    OptionsContainer.AutomaticSize = Enum.AutomaticSize.Y
+    OptionsContainer.BackgroundColor3 = Color3.fromRGB(28, 20, 24)
+    OptionsContainer.Visible = false
+    OptionsContainer.LayoutOrder = 3
+    OptionsContainer.Parent = Frame
+
+    local OptCorner = Instance.new("UICorner")
+    OptCorner.CornerRadius = UDim.new(0, 5)
+    OptCorner.Parent = OptionsContainer
+
+    local OptStroke = Instance.new("UIStroke")
+    OptStroke.Thickness = 1
+    OptStroke.Color = Color3.fromRGB(75, 24, 34)
+    OptStroke.Parent = OptionsContainer
+
+    local OptLayout = Instance.new("UIListLayout")
+    OptLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    OptLayout.Padding = UDim.new(0, 2)
+    OptLayout.Parent = OptionsContainer
+
+    local OptPad = Instance.new("UIPadding")
+    OptPad.PaddingTop = UDim.new(0, 4)
+    OptPad.PaddingBottom = UDim.new(0, 4)
+    OptPad.PaddingLeft = UDim.new(0, 6)
+    OptPad.PaddingRight = UDim.new(0, 6)
+    OptPad.Parent = OptionsContainer
+
+    local isOpen = false
+    for _, opt in ipairs(options) do
+        local OptBtn = Instance.new("TextButton")
+        OptBtn.Size = UDim2.new(1, 0, 0, 24)
+        OptBtn.BackgroundColor3 = Color3.fromRGB(34, 25, 30)
+        local isChecked = (selectedDict[opt] == true)
+        OptBtn.Text = (isChecked and "[✓]  " or "[  ]  ") .. tostring(opt)
+        OptBtn.Font = Enum.Font.Gotham
+        OptBtn.TextSize = 11
+        OptBtn.TextColor3 = isChecked and Color3.fromRGB(225, 40, 50) or Color3.fromRGB(180, 180, 185)
+        OptBtn.TextXAlignment = Enum.TextXAlignment.Left
+        OptBtn.Parent = OptionsContainer
+
+        local BtnCorner = Instance.new("UICorner")
+        BtnCorner.CornerRadius = UDim.new(0, 4)
+        BtnCorner.Parent = OptBtn
+
+        OptBtn.MouseButton1Click:Connect(function()
+            selectedDict[opt] = not selectedDict[opt]
+            local checked = (selectedDict[opt] == true)
+            OptBtn.Text = (checked and "[✓]  " or "[  ]  ") .. tostring(opt)
+            OptBtn.TextColor3 = checked and Color3.fromRGB(225, 40, 50) or Color3.fromRGB(180, 180, 185)
+            DropBtn.Text = getSummary()
+            if callback then callback(selectedDict) end
+            saveConfig()
+        end)
+    end
+
     DropBtn.MouseButton1Click:Connect(function()
-        local opt = options[cycleIdx]
-        selectedDict[opt] = not selectedDict[opt]
-        cycleIdx = cycleIdx + 1
-        if cycleIdx > #options then cycleIdx = 1 end
-        DropBtn.Text = getSummary()
-        if callback then callback(selectedDict) end
-        saveConfig()
+        isOpen = not isOpen
+        OptionsContainer.Visible = isOpen
+        Arrow.Text = isOpen and "^" or "v"
     end)
 end
 
@@ -1817,8 +3306,25 @@ addToggle(CardMine, "Enable Auto Mine", HubState.Config.AutoMine, function(enabl
     StatusMine.Text = enabled and "[ACTIVE] Mining Ore Terdekat" or "[IDLE]"
     StatusMine.TextColor3 = enabled and Color3.fromRGB(74, 222, 128) or Color3.fromRGB(200, 180, 185)
 end)
-addPresetDropdown(CardMine, "Ore Priority", {"Mythic & Legendary", "Diamond+", "Semua Ore"}, "Mythic & Legendary", function(v)
-    HubState.Config.OrePriority = (v ~= "Semua Ore")
+addMultiSelectDropdown(CardMine, "Mine Targets", {
+    "Zenith", "Transcendent", "Celestial", "Divine", "Godly", "Secret", "Exotic", "Mythic", "Legendary", "Epic", "Rare", "Uncommon", "Common", "Boulders", "Meteors"
+}, HubState.Config.MineTargets, function(res)
+    HubState.Config.MineTargets = res
+end)
+addPresetDropdown(CardMine, "Ore Priority", {"Zenith & Exotic+", "Mythic+", "Legendary+", "Rare+", "Semua Rarity"}, HubState.Config.OrePriorityTier or "Zenith & Exotic+", function(v)
+    HubState.Config.OrePriorityTier = v
+    HubState.Config.OrePriority = (v ~= "Semua Rarity")
+end)
+addButton(CardMine, "Instant Mine Closest", "Mine Now", function()
+    if HubState.InstantMineClosest then
+        HubState.InstantMineClosest()
+    end
+    StatusMine.Text = "[INSTANT] Mined Closest Ore!"
+    StatusMine.TextColor3 = Color3.fromRGB(74, 222, 128)
+    task.delay(1.5, function()
+        StatusMine.Text = HubState.Config.AutoMine and "[ACTIVE] Mining Ore Terdekat" or "[IDLE]"
+        StatusMine.TextColor3 = HubState.Config.AutoMine and Color3.fromRGB(74, 222, 128) or Color3.fromRGB(200, 180, 185)
+    end)
 end)
 addSlider(CardMine, "Mine Range (Studs)", 10, 80, HubState.Config.MineRange, function(val)
     HubState.Config.MineRange = val
@@ -1837,17 +3343,59 @@ addToggle(CardSell, "Enable Auto Sell", HubState.Config.AutoSell, function(enabl
     StatusSell.Text = enabled and "[ACTIVE] Remote Merchant Berjalan" or "[IDLE]"
     StatusSell.TextColor3 = enabled and Color3.fromRGB(74, 222, 128) or Color3.fromRGB(200, 180, 185)
 end)
-addPresetDropdown(CardSell, "Sell Target", {"Pedagang Base Camp", "Pedagang Terdekat", "Teleport Jual & Balik"}, "Pedagang Base Camp", function(v) end)
+addPresetDropdown(CardSell, "Sell Target", {"Pedagang Base Camp", "Pedagang Terdekat", "Teleport Jual & Balik"}, HubState.Config.SellTarget or "Pedagang Base Camp", function(v)
+    HubState.Config.SellTarget = v
+end)
+addButton(CardSell, "Sell All Items Now", "Sell Now", function()
+    if HubState.SellAllItemsNow then
+        HubState.SellAllItemsNow()
+    end
+    StatusSell.Text = "[INSTANT] Sold All Items!"
+    StatusSell.TextColor3 = Color3.fromRGB(74, 222, 128)
+    task.delay(1.5, function()
+        StatusSell.Text = HubState.Config.AutoSell and "[ACTIVE] Remote Merchant Berjalan" or "[IDLE]"
+        StatusSell.TextColor3 = HubState.Config.AutoSell and Color3.fromRGB(74, 222, 128) or Color3.fromRGB(200, 180, 185)
+    end)
+end)
 
 -- 3. TAB: AUTO COLLECT (1:1 SESUAI SCREENSHOT)
-local CardCol, StatusCol = createCard(AutoCollectPage, "Auto Collect", "[WAITING] Awaiting Drops In 25 Studs")
+local CardCol, StatusCol = createCard(AutoCollectPage, "Auto Collect", string.format("[IDLE] Range %d Studs", HubState.Config.CollectRange or 300))
 addPresetDropdown(CardCol, "Preset", {"Everything", "Crystals Only", "Coins Only", "Runes Only"}, HubState.Config.AutoCollectPreset, function(v)
     HubState.Config.AutoCollectPreset = v
+    if HubState.Config.AutoCollect then
+        StatusCol.Text = string.format("[ACTIVE] %s | Range %d Studs", v, HubState.Config.CollectRange or 300)
+    end
 end)
 addToggle(CardCol, "Enable Auto Collect", HubState.Config.AutoCollect, function(enabled)
     HubState.Config.AutoCollect = enabled
-    StatusCol.Text = enabled and "[WAITING] Awaiting Drops In 25 Studs" or "[IDLE]"
+    local curRange = HubState.Config.CollectRange or 300
+    StatusCol.Text = enabled and string.format("[ACTIVE] Collecting within %d Studs", curRange) or string.format("[IDLE] Range %d Studs", curRange)
     StatusCol.TextColor3 = enabled and Color3.fromRGB(74, 222, 128) or Color3.fromRGB(200, 180, 185)
+end)
+addMultiSelectDropdown(CardCol, "Collect Targets", {
+    "Crystals", "Ores", "Boulders", "Coins", "Candy / Permen", "Runes", "Chests / Crates", "Meteors", "Shards"
+}, HubState.Config.CollectTargets, function(res)
+    HubState.Config.CollectTargets = res
+end)
+addButton(CardCol, "Collect All Drops Now", "Collect Now", function()
+    if HubState.CollectEverythingNow then
+        HubState.CollectEverythingNow()
+    end
+    StatusCol.Text = "[INSTANT] All Drops Collected!"
+    StatusCol.TextColor3 = Color3.fromRGB(74, 222, 128)
+    task.delay(1.5, function()
+        local curRange = HubState.Config.CollectRange or 300
+        StatusCol.Text = HubState.Config.AutoCollect and string.format("[ACTIVE] Collecting within %d Studs", curRange) or string.format("[IDLE] Range %d Studs", curRange)
+        StatusCol.TextColor3 = HubState.Config.AutoCollect and Color3.fromRGB(74, 222, 128) or Color3.fromRGB(200, 180, 185)
+    end)
+end)
+addSlider(CardCol, "Collect Range (Studs)", 50, 1000, HubState.Config.CollectRange or 300, function(val)
+    HubState.Config.CollectRange = val
+    if HubState.Config.AutoCollect then
+        StatusCol.Text = string.format("[ACTIVE] Collecting within %d Studs", val)
+    else
+        StatusCol.Text = string.format("[IDLE] Range %d Studs", val)
+    end
 end)
 
 local CardTPCol, StatusTPCol = createCard(AutoCollectPage, "Teleport Collect", "[IDLE]")
@@ -1857,6 +3405,9 @@ addToggle(CardTPCol, "Enable Teleport Collect", HubState.Config.TeleportCollectE
     StatusTPCol.Text = enabled and "[ACTIVE] Teleporting to Drops" or "[IDLE]"
     StatusTPCol.TextColor3 = enabled and Color3.fromRGB(74, 222, 128) or Color3.fromRGB(200, 180, 185)
 end)
+addSlider(CardTPCol, "Max TP Range (Studs)", 100, 1500, math.floor((HubState.Config.CollectRange or 300) * 1.5), function(val)
+    HubState.Config.CollectRange = math.floor(val / 1.5)
+end)
 
 -- 4. TAB: MOVEMENT
 local CardMove, StatusMove = createCard(MovementPage, "Movement", "[ACTIVE] Physics Engine Loaded")
@@ -1864,51 +3415,126 @@ addPresetDropdown(CardMove, "Preset", {"Blatant", "Legit", "Custom"}, "Blatant",
     if v == "Blatant" then
         HubState.Config.WalkSpeed = 100
         HubState.Config.JumpPower = 150
+        HubState.Config.Noclip = true
     elseif v == "Legit" then
         HubState.Config.WalkSpeed = 32
         HubState.Config.JumpPower = 70
+        HubState.Config.Noclip = false
+    end
+    if LocalPlayer.Character then
+        local hum = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+        if hum then
+            hum.UseJumpPower = true
+            hum.WalkSpeed = HubState.Config.WalkSpeed
+            hum.JumpPower = HubState.Config.JumpPower
+        end
     end
 end)
 addToggle(CardMove, "Enable Movement Mods", true, function(enabled)
-    StatusMove.Text = enabled and "[ACTIVE] Physics Engine Loaded" or "[IDLE]"
+    HubState.Config.PlayerModsEnabled = enabled
+    StatusMove.Text = enabled and "[ACTIVE] Movement Enforced" or "[IDLE]"
 end)
-local moveDict = { ["Speed"] = true, ["Jump"] = true, ["Fly"] = false, ["Noclip"] = false, ["InfJump"] = false, ["SpinBot"] = false, ["ClickTP"] = false }
-addMultiSelectDropdown(CardMove, "Movement Features", {"Speed", "Jump", "Fly", "Noclip", "InfJump", "SpinBot", "ClickTP"}, moveDict, function(res)
-    HubState.Config.Fly = res["Fly"]
+addMultiSelectDropdown(CardMove, "Movement Features", {"Speed", "Jump", "Fly", "Noclip", "InfJump", "AutoBhop", "Click TP"}, {
+    ["Speed"] = true, ["Jump"] = true, ["Fly"] = false, ["Noclip"] = false, ["InfJump"] = false, ["AutoBhop"] = false, ["Click TP"] = false
+}, function(res)
     HubState.Config.Noclip = res["Noclip"]
     HubState.Config.InfJump = res["InfJump"]
-    HubState.Config.SpinBot = res["SpinBot"]
-    HubState.Config.ClickTP = res["ClickTP"]
+    HubState.Config.AutoBhop = res["AutoBhop"]
+    HubState.Config.ClickTP = res["Click TP"]
 end)
 addSlider(CardMove, "WalkSpeed", 16, 300, HubState.Config.WalkSpeed, function(val)
     HubState.Config.WalkSpeed = val
-    if LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid") then
-        LocalPlayer.Character:FindFirstChildOfClass("Humanoid").WalkSpeed = val
+    if LocalPlayer.Character then
+        local hum = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+        if hum then hum.WalkSpeed = val end
     end
 end)
 addSlider(CardMove, "JumpPower", 50, 400, HubState.Config.JumpPower, function(val)
     HubState.Config.JumpPower = val
-    if LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid") then
-        LocalPlayer.Character:FindFirstChildOfClass("Humanoid").JumpPower = val
+    if LocalPlayer.Character then
+        local hum = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+        if hum then
+            hum.UseJumpPower = true
+            hum.JumpPower = val
+        end
     end
 end)
 
--- 5. TAB: AUTO GARDEN (1:1 SESUAI SCREENSHOT)
+-- 5. TAB: AUTO GARDEN (MINE ANTARCTICA CRYSTAL FARM - 1:1 BARRAGE HUB SPEC)
 local CardGarden, StatusGarden = createCard(AutoGardenPage, "Auto Garden", "[IDLE]")
-addPresetDropdown(CardGarden, "Preset", {"Rarity > Luck", "Keberuntungan", "Cepat", "Default"}, HubState.Config.AutoGardenPreset or "Rarity > Luck", function(v)
+addPresetDropdown(CardGarden, "Preset", {"Best", "Rarity", "Luck", "Mutation", "Value", "Weight"}, HubState.Config.AutoGardenPreset or "Best", function(v)
     HubState.Config.AutoGardenPreset = v
     if HubState.Config.AutoGarden then
-        StatusGarden.Text = "[ACTIVE] Farming Garden (" .. v .. ")"
+        StatusGarden.Text = "[ACTIVE] Farming Kristal (" .. v .. ")"
     end
 end)
 addToggle(CardGarden, "Enable Auto Garden", HubState.Config.AutoGarden, function(enabled)
     HubState.Config.AutoGarden = enabled
-    local currentPreset = HubState.Config.AutoGardenPreset or "Rarity > Luck"
-    StatusGarden.Text = enabled and ("[ACTIVE] Farming Garden (" .. currentPreset .. ")") or "[IDLE]"
+    local currentPreset = HubState.Config.AutoGardenPreset or "Best"
+    StatusGarden.Text = enabled and ("[ACTIVE] Farming Kristal (" .. currentPreset .. ")") or "[IDLE]"
     StatusGarden.TextColor3 = enabled and Color3.fromRGB(74, 222, 128) or Color3.fromRGB(200, 180, 185)
 end)
-addPresetDropdown(CardGarden, "Garden Actions", {"Buy Space, Fill Best", "Harvest Only", "Plant Only", "Full Auto"}, HubState.Config.GardenAction, function(v)
+addButton(CardGarden, "Auto Garden Now", "Garden Now", function()
+    if HubState.PerformGarden then
+        HubState.PerformGarden("all")
+    end
+    StatusGarden.Text = "[INSTANT] Auto Garden Executed!"
+    StatusGarden.TextColor3 = Color3.fromRGB(74, 222, 128)
+    task.delay(1.5, function()
+        local currentPreset = HubState.Config.AutoGardenPreset or "Best"
+        StatusGarden.Text = HubState.Config.AutoGarden and ("[ACTIVE] Farming Kristal (" .. currentPreset .. ")") or "[IDLE]"
+        StatusGarden.TextColor3 = HubState.Config.AutoGarden and Color3.fromRGB(74, 222, 128) or Color3.fromRGB(200, 180, 185)
+    end)
+end)
+addButton(CardGarden, "Buy Garden Space", "Buy Space", function()
+    if HubState.BuyGardenSpace then
+        HubState.BuyGardenSpace()
+    end
+    StatusGarden.Text = "[INSTANT] Buy Space Triggered!"
+    StatusGarden.TextColor3 = Color3.fromRGB(74, 222, 128)
+    task.delay(1.5, function()
+        local currentPreset = HubState.Config.AutoGardenPreset or "Best"
+        StatusGarden.Text = HubState.Config.AutoGarden and ("[ACTIVE] Farming Kristal (" .. currentPreset .. ")") or "[IDLE]"
+        StatusGarden.TextColor3 = HubState.Config.AutoGarden and Color3.fromRGB(74, 222, 128) or Color3.fromRGB(200, 180, 185)
+    end)
+end)
+addButton(CardGarden, "Harvest All Crystals", "Harvest Now", function()
+    if HubState.PerformGarden then
+        HubState.PerformGarden("harvest")
+    end
+    StatusGarden.Text = "[INSTANT] Harvest All Executed!"
+    StatusGarden.TextColor3 = Color3.fromRGB(74, 222, 128)
+    task.delay(1.5, function()
+        local currentPreset = HubState.Config.AutoGardenPreset or "Best"
+        StatusGarden.Text = HubState.Config.AutoGarden and ("[ACTIVE] Farming Kristal (" .. currentPreset .. ")") or "[IDLE]"
+        StatusGarden.TextColor3 = HubState.Config.AutoGarden and Color3.fromRGB(74, 222, 128) or Color3.fromRGB(200, 180, 185)
+    end)
+end)
+addButton(CardGarden, "Plant Best Crystal", "Plant Now", function()
+    if HubState.PerformGarden then
+        HubState.PerformGarden("plant")
+    end
+    StatusGarden.Text = "[INSTANT] Plant Best Crystal Executed!"
+    StatusGarden.TextColor3 = Color3.fromRGB(74, 222, 128)
+    task.delay(1.5, function()
+        local currentPreset = HubState.Config.AutoGardenPreset or "Best"
+        StatusGarden.Text = HubState.Config.AutoGarden and ("[ACTIVE] Farming Kristal (" .. currentPreset .. ")") or "[IDLE]"
+        StatusGarden.TextColor3 = HubState.Config.AutoGarden and Color3.fromRGB(74, 222, 128) or Color3.fromRGB(200, 180, 185)
+    end)
+end)
+addPresetDropdown(CardGarden, "Garden Actions", {"Buy Space, Fill Best", "Fill Garden Only", "Buy Garden Space Only", "Harvest / Clear Garden"}, HubState.Config.GardenAction, function(v)
     HubState.Config.GardenAction = v
+end)
+local gardenDict = {
+    ["Auto Buy Garden Space"] = true,
+    ["Auto Fill Best Crystals"] = true,
+    ["Auto Harvest Mutated Crystals"] = true,
+    ["Prioritize Rarity > Luck"] = true
+}
+addMultiSelectDropdown(CardGarden, "Garden Features", {
+    "Auto Buy Garden Space", "Auto Fill Best Crystals", "Auto Harvest Mutated Crystals", "Prioritize Rarity > Luck"
+}, gardenDict, function(r)
+    HubState.Config.GardenFeatures = r
 end)
 
 -- 6. TAB: AUTO RUNES
@@ -1918,25 +3544,26 @@ addPresetDropdown(CardRunes, "Preset", {"Default", "Fast Activate"}, HubState.Co
 end)
 addToggle(CardRunes, "Enable Auto Runes", HubState.Config.AutoRunes, function(enabled)
     HubState.Config.AutoRunes = enabled
-    StatusRunes.Text = enabled and "[ACTIVE] Altar Rune Otomatis" or "[IDLE]"
+    StatusRunes.Text = enabled and "[ACTIVE] Auto Craft & Infuse Runes" or "[IDLE]"
     StatusRunes.TextColor3 = enabled and Color3.fromRGB(74, 222, 128) or Color3.fromRGB(200, 180, 185)
 end)
-addPresetDropdown(CardRunes, "Rune Actions", {"Collect & Activate", "Collect Only", "Activate Altar Only"}, HubState.Config.RuneAction, function(v)
+addPresetDropdown(CardRunes, "Rune Actions", {"Collect & Activate", "Collect Only", "Activate Only"}, HubState.Config.RuneAction, function(v)
     HubState.Config.RuneAction = v
 end)
 
 -- 7. TAB: AUTO PICKAXE
-local CardPickaxe, StatusPickaxe = createCard(AutoPickaxePage, "Auto Pickaxe", "[ACTIVE] Auto Equip Best Tool")
+local CardPickaxe, StatusPickaxe = createCard(AutoPickaxePage, "Auto Pickaxe", "[ACTIVE] Auto Equip Highest Tier")
 addPresetDropdown(CardPickaxe, "Preset", {"Best Available", "Next Tier"}, HubState.Config.AutoPickaxePreset, function(v)
     HubState.Config.AutoPickaxePreset = v
 end)
 addToggle(CardPickaxe, "Enable Auto Pickaxe", HubState.Config.AutoPickaxe, function(enabled)
     HubState.Config.AutoPickaxe = enabled
-    StatusPickaxe.Text = enabled and "[ACTIVE] Best Pickaxe Dipantau" or "[IDLE]"
+    StatusPickaxe.Text = enabled and "[ACTIVE] Auto Equip Highest Tier" or "[IDLE]"
     StatusPickaxe.TextColor3 = enabled and Color3.fromRGB(74, 222, 128) or Color3.fromRGB(200, 180, 185)
 end)
-local pickDict = { ["Auto Equip Best Tool"] = true, ["Auto Buy Next Tier"] = true, ["Auto Repair Tool"] = true }
-addMultiSelectDropdown(CardPickaxe, "Pickaxe Actions", {"Auto Equip Best Tool", "Auto Buy Next Tier", "Auto Repair Tool"}, pickDict, function(r) end)
+addMultiSelectDropdown(CardPickaxe, "Pickaxe Actions", {"Auto Equip Best Tool", "Auto Buy Better Pickaxe", "Auto Repair"}, {
+    ["Auto Equip Best Tool"] = true, ["Auto Buy Better Pickaxe"] = false, ["Auto Repair"] = true
+}, function(r) end)
 
 -- 8. TAB: AUTO UPGRADE
 local CardUpgrade, StatusUpgrade = createCard(AutoUpgradePage, "Auto Upgrade", "[IDLE]")
@@ -1945,11 +3572,12 @@ addPresetDropdown(CardUpgrade, "Preset", {"Balance", "Capacity First", "Strength
 end)
 addToggle(CardUpgrade, "Enable Auto Upgrade", HubState.Config.AutoUpgrade, function(enabled)
     HubState.Config.AutoUpgrade = enabled
-    StatusUpgrade.Text = enabled and "[ACTIVE] Upgrade Berkala Berjalan" or "[IDLE]"
+    StatusUpgrade.Text = enabled and "[ACTIVE] Upgrading Pickaxes & Bag" or "[IDLE]"
     StatusUpgrade.TextColor3 = enabled and Color3.fromRGB(74, 222, 128) or Color3.fromRGB(200, 180, 185)
 end)
-local upgDict = { ["Carry Capacity"] = true, ["Mining Power"] = true, ["Warmth Insulation"] = true }
-addMultiSelectDropdown(CardUpgrade, "Upgrade Actions", {"Carry Capacity", "Mining Power", "Warmth Insulation"}, upgDict, function(r) end)
+addMultiSelectDropdown(CardUpgrade, "Upgrade Actions", {"Carry Capacity", "Mining Power", "Warmth & Freeze Shield"}, {
+    ["Carry Capacity"] = true, ["Mining Power"] = true, ["Warmth & Freeze Shield"] = true
+}, function(r) end)
 
 -- 9. TAB: AUTO ITEMS
 local CardItems, StatusItems = createCard(AutoItemsPage, "Auto Items", "[IDLE]")
@@ -1958,11 +3586,29 @@ addPresetDropdown(CardItems, "Preset", {"Utility", "Explosives", "All"}, HubStat
 end)
 addToggle(CardItems, "Enable Auto Items", HubState.Config.AutoItems, function(enabled)
     HubState.Config.AutoItems = enabled
-    StatusItems.Text = enabled and "[ACTIVE] Radar & Peti Dipantau" or "[IDLE]"
+    StatusItems.Text = enabled and "[ACTIVE] Radar, Bombs & Chests Active" or "[IDLE]"
     StatusItems.TextColor3 = enabled and Color3.fromRGB(74, 222, 128) or Color3.fromRGB(200, 180, 185)
 end)
-local itemDict = { ["Radar Batu Besar"] = true, ["Radar Kristal 99x"] = true, ["Dinamit Bom"] = true, ["Buka Peti Kuali"] = true }
-addMultiSelectDropdown(CardItems, "Item Actions", {"Radar Batu Besar", "Radar Kristal 99x", "Dinamit Bom", "Buka Peti Kuali"}, itemDict, function(r) end)
+addMultiSelectDropdown(CardItems, "Item Actions", {"Radar Batu Besar", "Radar Kristal 99x", "Radar Meteor", "Auto Gunakan Radar", "Beli Bom Dinamit", "Buka Chest & Crate"}, {
+    ["Radar Batu Besar"] = true, ["Radar Kristal 99x"] = true, ["Radar Meteor"] = true, ["Auto Gunakan Radar"] = true, ["Beli Bom Dinamit"] = false, ["Buka Chest & Crate"] = true
+}, function(r) end)
+addButton(CardItems, "Ping Radar Tools Now", "Ping Now", function()
+    pcall(function()
+        local backpack = LocalPlayer:FindFirstChild("Backpack")
+        local containers = {LocalPlayer.Character, backpack}
+        for _, cont in ipairs(containers) do
+            if cont then
+                for _, tool in ipairs(cont:GetChildren()) do
+                    if tool:IsA("Tool") and tool.Name:lower():find("radar") then
+                        tool:Activate()
+                    end
+                end
+            end
+        end
+    end)
+    StatusItems.Text = "[INSTANT] Radar Activated!"
+    StatusItems.TextColor3 = Color3.fromRGB(74, 222, 128)
+end)
 
 -- 10. TAB: REWARDS
 local CardRewards, StatusRewards = createCard(RewardsPage, "Rewards", "[IDLE]")
@@ -1971,11 +3617,12 @@ addPresetDropdown(CardRewards, "Preset", {"Claim All", "Playtime Only"}, HubStat
 end)
 addToggle(CardRewards, "Enable Auto Claim Rewards", HubState.Config.AutoClaimRewards, function(enabled)
     HubState.Config.AutoClaimRewards = enabled
-    StatusRewards.Text = enabled and "[ACTIVE] Hadiah Diklaim Otomatis" or "[IDLE]"
+    StatusRewards.Text = enabled and "[ACTIVE] Claiming Daily & Free Gifts" or "[IDLE]"
     StatusRewards.TextColor3 = enabled and Color3.fromRGB(74, 222, 128) or Color3.fromRGB(200, 180, 185)
 end)
-local rewDict = { ["Daily Gift Claim"] = true, ["Playtime Rewards"] = true, ["Completed Quests"] = true }
-addMultiSelectDropdown(CardRewards, "Reward Actions", {"Daily Gift Claim", "Playtime Rewards", "Completed Quests"}, rewDict, function(r) end)
+addMultiSelectDropdown(CardRewards, "Reward Actions", {"Daily Gift Claim", "Playtime Rewards", "Wheel Spin", "Quests"}, {
+    ["Daily Gift Claim"] = true, ["Playtime Rewards"] = true, ["Wheel Spin"] = true, ["Quests"] = true
+}, function(r) end)
 
 -- 11. TAB: PLAYER MODS (1:1 SESUAI SCREENSHOT)
 local CardPlayerMods, StatusPlayerMods = createCard(PlayerModsPage, "Player Mods", "[IDLE]")
@@ -1994,21 +3641,54 @@ addPresetDropdown(CardPlayerMods, "Preset", {"Blatant", "Legit", "Custom"}, HubS
         HubState.Config.AntiFreeze = true
         HubState.Config.NoFallDamage = true
     end
+    if LocalPlayer.Character then
+        local hum = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+        if hum then
+            hum.UseJumpPower = true
+            hum.WalkSpeed = HubState.Config.WalkSpeed
+            hum.JumpPower = HubState.Config.JumpPower
+        end
+    end
 end)
 addToggle(CardPlayerMods, "Enable Player Mods", HubState.Config.PlayerModsEnabled, function(enabled)
     HubState.Config.PlayerModsEnabled = enabled
     StatusPlayerMods.Text = enabled and "[ACTIVE] 7 Mods | Blatant" or "[IDLE]"
     StatusPlayerMods.TextColor3 = enabled and Color3.fromRGB(74, 222, 128) or Color3.fromRGB(200, 180, 185)
 end)
+addToggle(CardPlayerMods, "Enable Anti-Ragdoll", HubState.Config.AntiRagdoll, function(enabled)
+    HubState.Config.AntiRagdoll = enabled
+    HubState.Config.PlayerModsList["Anti Ragdoll"] = enabled
+end)
 addMultiSelectDropdown(CardPlayerMods, "Player Mods", {
-    "Speed", "Fly", "Noclip", "Jump Boost", "Infinite Jetpack", "Anti Freeze", "No Fall Damage", "SpinBot", "Click TP"
+    "Speed", "Jump Boost", "Anti Ragdoll", "Anti Freeze", "No Fall Damage", "Infinite Jetpack", "Noclip", "Fly", "SpinBot", "Click TP"
 }, HubState.Config.PlayerModsList, function(res)
-    HubState.Config.InfiniteJetpack = res["Infinite Jetpack"]
+    HubState.Config.PlayerModsList = res
+    HubState.Config.AntiRagdoll = res["Anti Ragdoll"]
     HubState.Config.AntiFreeze = res["Anti Freeze"]
     HubState.Config.NoFallDamage = res["No Fall Damage"]
+    HubState.Config.InfiniteJetpack = res["Infinite Jetpack"]
+    HubState.Config.Noclip = res["Noclip"]
+    HubState.Config.Fly = res["Fly"]
+    HubState.Config.SpinBot = res["SpinBot"]
+    HubState.Config.ClickTP = res["Click TP"]
 end)
-addSlider(CardPlayerMods, "Custom Speed", 16, 300, HubState.Config.WalkSpeed, function(v) HubState.Config.WalkSpeed = v end)
-addSlider(CardPlayerMods, "Custom Jump", 50, 400, HubState.Config.JumpPower, function(v) HubState.Config.JumpPower = v end)
+addSlider(CardPlayerMods, "Custom Speed", 16, 300, HubState.Config.WalkSpeed, function(v)
+    HubState.Config.WalkSpeed = v
+    if LocalPlayer.Character then
+        local hum = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+        if hum then hum.WalkSpeed = v end
+    end
+end)
+addSlider(CardPlayerMods, "Custom Jump", 50, 400, HubState.Config.JumpPower, function(v)
+    HubState.Config.JumpPower = v
+    if LocalPlayer.Character then
+        local hum = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+        if hum then
+            hum.UseJumpPower = true
+            hum.JumpPower = v
+        end
+    end
+end)
 
 -- 12. TAB: MINING MODS (1:1 SESUAI SCREENSHOT)
 local CardMiningMods, StatusMiningMods = createCard(MiningModsPage, "Mining Mods", "[ACTIVE] 9 Mods | Swing 0.09s")
@@ -2021,19 +3701,86 @@ addPresetDropdown(CardMiningMods, "Preset", {"Blatant", "Legit", "Custom"}, HubS
         HubState.Config.FastMineHits = 2
         HubState.Config.MineRange = 25
     end
+    if HubState.SyncGamepasses then HubState.SyncGamepasses() end
 end)
-addToggle(CardMiningMods, "Enable Mining Mods", HubState.Config.MiningModsEnabled or true, function(enabled)
+addToggle(CardMiningMods, "Enable Mining Mods", HubState.Config.MiningModsEnabled, function(enabled)
     HubState.Config.MiningModsEnabled = enabled
     StatusMiningMods.Text = enabled and "[ACTIVE] 9 Mods | Swing 0.09s" or "[IDLE]"
     StatusMiningMods.TextColor3 = enabled and Color3.fromRGB(74, 222, 128) or Color3.fromRGB(200, 180, 185)
+    if HubState.SyncGamepasses then HubState.SyncGamepasses() end
+end)
+addToggle(CardMiningMods, "Enable Anti-Ragdoll", HubState.Config.AntiRagdoll, function(enabled)
+    HubState.Config.AntiRagdoll = enabled
+    HubState.Config.MiningModsList["Anti Ragdoll"] = enabled
+    if HubState.SyncGamepasses then HubState.SyncGamepasses() end
 end)
 addMultiSelectDropdown(CardMiningMods, "Mining Mods", {
+    "8x Kekuatan", "Ranjau Instan", "x4 Berat Dibawa", "2x Penggalian Cepat", "2x Keberuntungan", "4x Keberuntungan", "x2 Kristal", "Tidak Ada Kerusakan Jatuh",
     "Anti Ragdoll", "Dig While Mining", "Instant Break", "Reach Mine", "Fast Swing", "Ore Aura", "No Slowdown", "Auto Equip Best Tool", "Auto Repair"
 }, HubState.Config.MiningModsList, function(res)
+    HubState.Config.MiningModsList = res
+    HubState.Config.Power8x = res["8x Kekuatan"]
+    HubState.Config.InstantMine = res["Ranjau Instan"]
+    HubState.Config.CarryWeight4x = res["x4 Berat Dibawa"]
+    HubState.Config.FastDig2x = res["2x Penggalian Cepat"]
+    HubState.Config.Luck2x = res["2x Keberuntungan"]
+    HubState.Config.Luck4x = res["4x Keberuntungan"]
+    HubState.Config.Crystal2x = res["x2 Kristal"]
+    HubState.Config.Crystals2x = res["x2 Kristal"]
+    HubState.Config.NoFallDamage = res["Tidak Ada Kerusakan Jatuh"]
     HubState.Config.AntiRagdoll = res["Anti Ragdoll"]
+    if HubState.SyncGamepasses then HubState.SyncGamepasses() end
 end)
 addSlider(CardMiningMods, "Fast Swing Hit Multiplier", 1, 8, HubState.Config.FastMineHits, function(v) HubState.Config.FastMineHits = v end)
 addSlider(CardMiningMods, "Reach Mine (Studs)", 10, 80, HubState.Config.MineRange, function(v) HubState.Config.MineRange = v end)
+
+-- KARTU GAMEPASS TOKO MINE ANTARCTICA (100% UNLOCKED)
+local CardTokoPass, StatusTokoPass = createCard(MiningModsPage, "Toko Gamepasses (Unlocked)", "[ACTIVE] 9 Passes Active")
+addToggle(CardTokoPass, "8x Kekuatan (Damage Kristal 8x)", HubState.Config.Power8x, function(v)
+    HubState.Config.Power8x = v
+    HubState.Config.MiningModsList["8x Kekuatan"] = v
+    if HubState.SyncGamepasses then HubState.SyncGamepasses() end
+end)
+addToggle(CardTokoPass, "Ranjau Instan (1-Click Instant Break)", HubState.Config.InstantMine, function(v)
+    HubState.Config.InstantMine = v
+    HubState.Config.MiningModsList["Ranjau Instan"] = v
+    if HubState.SyncGamepasses then HubState.SyncGamepasses() end
+end)
+addToggle(CardTokoPass, "Tidak Ada Kerusakan Akibat Jatuh", HubState.Config.NoFallDamage, function(v)
+    HubState.Config.NoFallDamage = v
+    HubState.Config.MiningModsList["Tidak Ada Kerusakan Jatuh"] = v
+    if HubState.SyncGamepasses then HubState.SyncGamepasses() end
+end)
+addToggle(CardTokoPass, "x4 Berat yang Dibawa (4x Ransel)", HubState.Config.CarryWeight4x, function(v)
+    HubState.Config.CarryWeight4x = v
+    HubState.Config.MiningModsList["x4 Berat Dibawa"] = v
+    if HubState.SyncGamepasses then HubState.SyncGamepasses() end
+end)
+addToggle(CardTokoPass, "2x Penggalian Cepat (Fast Dig 2x)", HubState.Config.FastDig2x, function(v)
+    HubState.Config.FastDig2x = v
+    HubState.Config.MiningModsList["2x Penggalian Cepat"] = v
+    if HubState.SyncGamepasses then HubState.SyncGamepasses() end
+end)
+addToggle(CardTokoPass, "2x Keberuntungan (2x Luck Gali)", HubState.Config.Luck2x, function(v)
+    HubState.Config.Luck2x = v
+    HubState.Config.MiningModsList["2x Keberuntungan"] = v
+    if HubState.SyncGamepasses then HubState.SyncGamepasses() end
+end)
+addToggle(CardTokoPass, "4x Keberuntungan (4x Luck Gali)", HubState.Config.Luck4x, function(v)
+    HubState.Config.Luck4x = v
+    HubState.Config.MiningModsList["4x Keberuntungan"] = v
+    if HubState.SyncGamepasses then HubState.SyncGamepasses() end
+end)
+addToggle(CardTokoPass, "x2 Kristal (2x Kristal Diangkat)", HubState.Config.Crystal2x, function(v)
+    HubState.Config.Crystal2x = v
+    HubState.Config.Crystals2x = v
+    HubState.Config.MiningModsList["x2 Kristal"] = v
+    if HubState.SyncGamepasses then HubState.SyncGamepasses() end
+end)
+addToggle(CardTokoPass, "2x Koin (2x Koin saat Menjual)", HubState.Config.Coins2x, function(v)
+    HubState.Config.Coins2x = v
+    if HubState.SyncGamepasses then HubState.SyncGamepasses() end
+end)
 
 -- 13. TAB: VISUALS (ESP & WALLHACK)
 local CardESP, StatusESP = createCard(VisualsPage, "Visuals & ESP", "[IDLE]")
@@ -2043,6 +3790,9 @@ addToggle(CardESP, "Enable Player ESP", HubState.Config.EspEnabled, function(v)
     StatusESP.TextColor3 = v and Color3.fromRGB(74, 222, 128) or Color3.fromRGB(200, 180, 185)
 end)
 local espDict = { ["Chams"] = true, ["Boxes"] = true, ["Names"] = true, ["Health"] = true, ["Distance"] = true, ["Tracers"] = false, ["Crystal ESP"] = true }
+addToggle(CardESP, "Enable Crystal & Boulder ESP", HubState.Config.CrystalEsp, function(v)
+    HubState.Config.CrystalEsp = v
+end)
 addMultiSelectDropdown(CardESP, "ESP Elements", {"Chams", "Boxes", "Names", "Health", "Distance", "Tracers", "Crystal ESP"}, espDict, function(res)
     HubState.Config.EspChams = res["Chams"]
     HubState.Config.EspBoxes = res["Boxes"]
@@ -2051,6 +3801,9 @@ addMultiSelectDropdown(CardESP, "ESP Elements", {"Chams", "Boxes", "Names", "Hea
     HubState.Config.EspDistance = res["Distance"]
     HubState.Config.EspTracers = res["Tracers"]
     HubState.Config.CrystalEsp = res["Crystal ESP"]
+end)
+addSlider(CardESP, "Crystal ESP Range (Studs)", 100, 1500, HubState.Config.EspRange or 1000, function(v)
+    HubState.Config.EspRange = v
 end)
 addToggle(CardESP, "FullBright (Terang Penuh)", HubState.Config.FullBright, function(v) HubState.Config.FullBright = v end)
 addToggle(CardESP, "X-Ray Mode (Tembus Pandang)", HubState.Config.XRay, function(v)
