@@ -1,12 +1,12 @@
--- ANTIGRAVITY ENTERPRISE ULTIMATE GAME HUB (lua2.txt) - v9.7.0 (Unified Lifecycle, Consolidated Loop Architecture & Zero-Collision Engine)
+-- ANTIGRAVITY ENTERPRISE ULTIMATE GAME HUB (lua2.txt) - v9.7.1 (Zero-Failure Execution Engine: Lexical Scope Resolution & Complete Luau/Lua Polyfills)
 -- IMPLEMENTASI LENGKAP 50+ FITUR (COMBAT, VISUALS, MOVEMENT, WORLD, EXPLOITS, UTILITIES)
 -- 100% STANDALONE - TANPA DEPENDENSI GITHUB, TANPA ENKRIPSI VM LURAPH, BEBAS KUNCI
 -- ==============================================================================
 
 local HUB_NAME = "Antigravity Hub"
-local HUB_VERSION = "9.7.0"
+local HUB_VERSION = "9.7.1"
 local CONFIG_FILE = "antigravity_hub_config.json"
-local CONFIG_VERSION = "9.7.0"
+local CONFIG_VERSION = "9.7.1"
 local WAYPOINTS_FILE = "antigravity_waypoints.json"
 
 -- 0. INSTANT SAFE RUNNER & UNFREEZE ENGINE (ZERO-LOCKOUT)
@@ -46,6 +46,24 @@ end
 _G.AntigravityHubInstance = {}
 
 -- 2. RESOLUSI LAYANAN GAME ENGINE
+-- Polyfill math.clamp & math.round & table.clear untuk kompatibilitas mutlak Luau / Lua 5.1
+if not math.clamp then
+    math.clamp = function(v, min, max)
+        if v < min then return min elseif v > max then return max else return v end
+    end
+end
+if not math.round then
+    math.round = function(v)
+        return math.floor(v + 0.5)
+    end
+end
+-- Polyfill table.clear untuk kompatibilitas mutlak antar executor (Arceus X / Luau / Lua 5.1)
+if not table.clear then
+    table.clear = function(t)
+        for k in pairs(t) do t[k] = nil end
+    end
+end
+
 local Services = {
     Players = game:GetService("Players"),
     CoreGui = game:GetService("CoreGui"),
@@ -101,6 +119,91 @@ local function tween(object, properties, duration)
 end
 
 -- 3. STATE MANAGEMENT (50+ FITUR CONFIG)
+local ALL_RARITY_TIERS = {
+    "zenith", "cosmic", "transcendent", "celestial", "divine", "godly", "secret",
+    "exotic", "mythic", "void", "legendary", "obsidian", "epic", "diamond",
+    "emerald", "ruby", "sapphire", "rare", "gold", "silver", "meteor",
+    "uncommon", "copper", "iron", "common", "stone", "crystal", "kristal",
+    "boulder", "rock", "ore"
+}
+
+local ORDERED_RARITY_KEYS = {
+    "zenith", "cosmic", "transcendent", "celestial", "divine", "godly", "secret",
+    "exotic", "mythic", "void", "legendary", "obsidian", "epic", "diamond",
+    "emerald", "ruby", "sapphire", "rare", "gold", "silver", "meteor",
+    "uncommon", "copper", "iron", "common", "stone", "crystal", "kristal",
+    "boulder", "rock", "ore"
+}
+
+local RARITY_RANKS = {
+    zenith = 100000,
+    cosmic = 95000,
+    transcendent = 60000,
+    celestial = 40000,
+    divine = 30000,
+    godly = 25000,
+    secret = 20000,
+    exotic = 15000,
+    mythic = 10000,
+    void = 8000,
+    legendary = 5000,
+    obsidian = 4000,
+    epic = 2500,
+    diamond = 2000,
+    emerald = 1800,
+    ruby = 1600,
+    sapphire = 1400,
+    rare = 1200,
+    gold = 1000,
+    silver = 800,
+    meteor = 700,
+    uncommon = 500,
+    copper = 400,
+    iron = 300,
+    crystal = 250,
+    kristal = 250,
+    common = 100,
+    stone = 80,
+    boulder = 50,
+    rock = 50,
+    ore = 20
+}
+
+local RARITY_COLORS = {
+    zenith = Color3.fromRGB(244, 63, 94),          -- Rose Neon
+    cosmic = Color3.fromRGB(244, 63, 94),          -- Rose Neon
+    transcendent = Color3.fromRGB(168, 85, 247),    -- Purple
+    celestial = Color3.fromRGB(56, 189, 248),       -- Sky Cyan
+    divine = Color3.fromRGB(250, 204, 21),         -- Gold
+    godly = Color3.fromRGB(239, 68, 68),           -- Crimson Red
+    secret = Color3.fromRGB(192, 132, 252),        -- Violet
+    exotic = Color3.fromRGB(20, 184, 166),         -- Teal
+    mythic = Color3.fromRGB(147, 51, 234),         -- Deep Purple
+    void = Color3.fromRGB(147, 51, 234),           -- Deep Purple
+    legendary = Color3.fromRGB(245, 158, 11),      -- Amber Orange
+    obsidian = Color3.fromRGB(245, 158, 11),       -- Amber Orange
+    epic = Color3.fromRGB(99, 102, 241),           -- Indigo
+    diamond = Color3.fromRGB(99, 102, 241),        -- Indigo
+    emerald = Color3.fromRGB(99, 102, 241),        -- Indigo
+    ruby = Color3.fromRGB(99, 102, 241),           -- Indigo
+    sapphire = Color3.fromRGB(99, 102, 241),       -- Indigo
+    rare = Color3.fromRGB(59, 130, 246),           -- Royal Blue
+    gold = Color3.fromRGB(59, 130, 246),           -- Royal Blue
+    silver = Color3.fromRGB(59, 130, 246),         -- Royal Blue
+    uncommon = Color3.fromRGB(34, 197, 94),        -- Emerald Green
+    copper = Color3.fromRGB(34, 197, 94),          -- Emerald Green
+    iron = Color3.fromRGB(34, 197, 94),            -- Emerald Green
+    common = Color3.fromRGB(148, 163, 184),        -- Slate
+    stone = Color3.fromRGB(148, 163, 184),         -- Slate
+    meteor = Color3.fromRGB(251, 146, 60),         -- Meteor Orange
+    crystal = Color3.fromRGB(236, 72, 153),        -- Hot Pink
+    kristal = Color3.fromRGB(236, 72, 153),        -- Hot Pink
+    boulder = Color3.fromRGB(203, 213, 225),       -- Ice Silver
+    rock = Color3.fromRGB(203, 213, 225),          -- Ice Silver
+    ore = Color3.fromRGB(161, 161, 170)            -- Zinc
+}
+
+
 local HubState = {
     Alive = true,
     Connections = {},
@@ -444,6 +547,7 @@ function HubState:Track(conn)
 end
 
 local function safeConnect(signal, fn)
+    if not signal or type(signal.Connect) ~= "function" then return nil end
     local conn = signal:Connect(fn)
     if HubState and HubState.Track then
         HubState:Track(conn)
@@ -935,90 +1039,6 @@ end)
 -- 8.5. ENGINE KHUSUS: MINE ANTARCTICA (MASTER SUITE)
 -- ==============================================================================
 -- 1. Deteksi Bijih & Kristal Terdekat (Spectrum Kelangkaan Lengkap: Zenith -> Common)
-local ALL_RARITY_TIERS = {
-    "zenith", "cosmic", "transcendent", "celestial", "divine", "godly", "secret",
-    "exotic", "mythic", "void", "legendary", "obsidian", "epic", "diamond",
-    "emerald", "ruby", "sapphire", "rare", "gold", "silver", "meteor",
-    "uncommon", "copper", "iron", "common", "stone", "crystal", "kristal",
-    "boulder", "rock", "ore"
-}
-
-local ORDERED_RARITY_KEYS = {
-    "zenith", "cosmic", "transcendent", "celestial", "divine", "godly", "secret",
-    "exotic", "mythic", "void", "legendary", "obsidian", "epic", "diamond",
-    "emerald", "ruby", "sapphire", "rare", "gold", "silver", "meteor",
-    "uncommon", "copper", "iron", "common", "stone", "crystal", "kristal",
-    "boulder", "rock", "ore"
-}
-
-local RARITY_RANKS = {
-    zenith = 100000,
-    cosmic = 95000,
-    transcendent = 60000,
-    celestial = 40000,
-    divine = 30000,
-    godly = 25000,
-    secret = 20000,
-    exotic = 15000,
-    mythic = 10000,
-    void = 8000,
-    legendary = 5000,
-    obsidian = 4000,
-    epic = 2500,
-    diamond = 2000,
-    emerald = 1800,
-    ruby = 1600,
-    sapphire = 1400,
-    rare = 1200,
-    gold = 1000,
-    silver = 800,
-    meteor = 700,
-    uncommon = 500,
-    copper = 400,
-    iron = 300,
-    crystal = 250,
-    kristal = 250,
-    common = 100,
-    stone = 80,
-    boulder = 50,
-    rock = 50,
-    ore = 20
-}
-
-local RARITY_COLORS = {
-    zenith = Color3.fromRGB(244, 63, 94),          -- Rose Neon
-    cosmic = Color3.fromRGB(244, 63, 94),          -- Rose Neon
-    transcendent = Color3.fromRGB(168, 85, 247),    -- Purple
-    celestial = Color3.fromRGB(56, 189, 248),       -- Sky Cyan
-    divine = Color3.fromRGB(250, 204, 21),         -- Gold
-    godly = Color3.fromRGB(239, 68, 68),           -- Crimson Red
-    secret = Color3.fromRGB(192, 132, 252),        -- Violet
-    exotic = Color3.fromRGB(20, 184, 166),         -- Teal
-    mythic = Color3.fromRGB(147, 51, 234),         -- Deep Purple
-    void = Color3.fromRGB(147, 51, 234),           -- Deep Purple
-    legendary = Color3.fromRGB(245, 158, 11),      -- Amber Orange
-    obsidian = Color3.fromRGB(245, 158, 11),       -- Amber Orange
-    epic = Color3.fromRGB(99, 102, 241),           -- Indigo
-    diamond = Color3.fromRGB(99, 102, 241),        -- Indigo
-    emerald = Color3.fromRGB(99, 102, 241),        -- Indigo
-    ruby = Color3.fromRGB(99, 102, 241),           -- Indigo
-    sapphire = Color3.fromRGB(99, 102, 241),       -- Indigo
-    rare = Color3.fromRGB(59, 130, 246),           -- Royal Blue
-    gold = Color3.fromRGB(59, 130, 246),           -- Royal Blue
-    silver = Color3.fromRGB(59, 130, 246),         -- Royal Blue
-    uncommon = Color3.fromRGB(34, 197, 94),        -- Emerald Green
-    copper = Color3.fromRGB(34, 197, 94),          -- Emerald Green
-    iron = Color3.fromRGB(34, 197, 94),            -- Emerald Green
-    common = Color3.fromRGB(148, 163, 184),        -- Slate
-    stone = Color3.fromRGB(148, 163, 184),         -- Slate
-    meteor = Color3.fromRGB(251, 146, 60),         -- Meteor Orange
-    crystal = Color3.fromRGB(236, 72, 153),        -- Hot Pink
-    kristal = Color3.fromRGB(236, 72, 153),        -- Hot Pink
-    boulder = Color3.fromRGB(203, 213, 225),       -- Ice Silver
-    rock = Color3.fromRGB(203, 213, 225),          -- Ice Silver
-    ore = Color3.fromRGB(161, 161, 170)            -- Zinc
-}
-
 local function getObjectRarity(obj)
     if not obj then return 100, "Common", RARITY_COLORS.common end
     local name = obj.Name:lower()
@@ -3200,7 +3220,7 @@ local AvatarImg = Instance.new("ImageLabel")
 AvatarImg.Size = UDim2.new(0, 34, 0, 34)
 AvatarImg.Position = UDim2.new(0, 8, 0.5, -17)
 AvatarImg.BackgroundColor3 = Color3.fromRGB(30, 20, 25)
-AvatarImg.Image = "rbxthumb://type=AvatarHeadShot&id=" .. LocalPlayer.UserId .. "&w=100&h=100"
+AvatarImg.Image = "rbxthumb://type=AvatarHeadShot&id=" .. (LocalPlayer and LocalPlayer.UserId or 0) .. "&w=100&h=100"
 AvatarImg.Parent = ProfileCard
 
 local AvatarCorner = Instance.new("UICorner")
@@ -4775,7 +4795,7 @@ end
 pcall(function()
     Services.StarterGui:SetCore("SendNotification", {
         Title = "BARRAGE",
-        Text = "Barrage Hub v1.0 [Mine Antarctica Suite] berhasil dimuat!",
+        Text = "Barrage Hub v9.7.1 [Mine Antarctica Suite] berhasil dimuat!",
         Duration = 5
     })
 end)
