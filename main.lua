@@ -1,12 +1,12 @@
--- ANTIGRAVITY ENTERPRISE ULTIMATE GAME HUB (lua2.txt) - v9.7.4 (Production Certified Zero-Bug Master Release)
+-- ANTIGRAVITY ENTERPRISE ULTIMATE GAME HUB (lua2.txt) - v9.7.5 (Radar Filtering & Realistic Mountain Cold Altitude Threshold Overhaul)
 -- IMPLEMENTASI LENGKAP 50+ FITUR (COMBAT, VISUALS, MOVEMENT, WORLD, EXPLOITS, UTILITIES)
 -- 100% STANDALONE - TANPA DEPENDENSI GITHUB, TANPA ENKRIPSI VM LURAPH, BEBAS KUNCI
 -- ==============================================================================
 
 local HUB_NAME = "Antigravity Hub"
-local HUB_VERSION = "9.7.4"
+local HUB_VERSION = "9.7.5"
 local CONFIG_FILE = "antigravity_hub_config.json"
-local CONFIG_VERSION = "9.7.4"
+local CONFIG_VERSION = "9.7.5"
 local WAYPOINTS_FILE = "antigravity_waypoints.json"
 
 -- 0. INSTANT SAFE RUNNER & UNFREEZE ENGINE (ZERO-LOCKOUT)
@@ -392,7 +392,16 @@ local HubState = {
         AutoPickaxePreset = "Best Available",
         AutoUpgradePreset = "Balance",
         AutoItemsPreset = "Utility",
+        ItemActions = {
+            ["Radar Batu Besar"] = false,
+            ["Radar Kristal 99x"] = false,
+            ["Radar Meteor"] = false,
+            ["Auto Gunakan Radar"] = false,
+            ["Beli Bom Dinamit"] = false,
+            ["Buka Chest & Crate"] = true
+        },
         RewardsPreset = "Claim All",
+        ColdAltitudeThreshold = 1500,
         -- World & Environment
         FullBright = false,
         NoFog = false,
@@ -1341,16 +1350,41 @@ local function equipBestPickaxe()
     if not hum or not bp then return end
 
     local curTool = char:FindFirstChildOfClass("Tool")
+    local nonPickaxeKeywords = {
+        "radar", "bomb", "dynamite", "dinamit", "potion", "jetpack", "backpack",
+        "ransel", "compass", "lamp", "lantern", "detector", "pelacak", "crate", "chest"
+    }
+
     local pickKeywords = {
         ["zenith"] = 1000, ["transcendent"] = 800, ["celestial"] = 600, ["divine"] = 500,
         ["godly"] = 400, ["secret"] = 350, ["exotic"] = 300, ["mythic"] = 250,
         ["legendary"] = 200, ["epic"] = 150, ["rare"] = 100, ["uncommon"] = 50,
         ["diamond"] = 80, ["crystal"] = 60, ["gold"] = 40, ["iron"] = 20,
+        ["hexfang"] = 500, ["pencabut"] = 400, ["nyawa"] = 300,
         ["pickaxe"] = 15, ["beliung"] = 15, ["axe"] = 10, ["drill"] = 12, ["hammer"] = 10
     }
 
+    local function isPickaxeTool(tool)
+        if not tool or not tool:IsA("Tool") then return false end
+        local tname = tool.Name:lower()
+        for _, ign in ipairs(nonPickaxeKeywords) do
+            if tname:find(ign) then return false end
+        end
+        if tname:find("pick") or tname:find("beliung") or tname:find("axe") or tname:find("drill") or tname:find("hammer") or tname:find("digger") or tname:find("shovel") or tname:find("hexfang") or tname:find("pencabut") then
+            return true
+        end
+        if tool:GetAttribute("MiningPower") or tool:GetAttribute("Pickaxe") or tool:FindFirstChild("MiningPower") or tool:FindFirstChild("Pickaxe") then
+            return true
+        end
+        local pwr = tool:GetAttribute("Power") or tool:GetAttribute("Damage") or (tool:FindFirstChild("Power") and tool.Power.Value) or (tool:FindFirstChild("Damage") and tool.Damage.Value)
+        if type(pwr) == "number" and pwr > 0 then
+            return true
+        end
+        return false
+    end
+
     local function scoreTool(tool)
-        if not tool or not tool:IsA("Tool") then return -1 end
+        if not isPickaxeTool(tool) then return -1 end
         local tname = tool.Name:lower()
         local score = 10
         for kw, val in pairs(pickKeywords) do
@@ -1551,6 +1585,10 @@ end
 -- 3.0.4. Universal Tool Hooking (Attributes, IntValues, Manual Swings & Reach)
 local function hookTool(tool)
     if not tool or not tool:IsA("Tool") then return end
+    local tname = tool.Name:lower()
+    for _, ign in ipairs({"radar", "bomb", "dynamite", "dinamit", "potion", "jetpack", "backpack", "ransel", "compass", "lamp", "detector"}) do
+        if tname:find(ign) then return end
+    end
 
     local pList = HubState.Config.MiningModsList or {}
     local isPower = HubState.Config.Power8x or (HubState.Config.MiningModsEnabled and pList["8x Kekuatan"])
@@ -2720,15 +2758,21 @@ local function performAutoUpgrade()
     end
 end
 
+local lastRadarPing = 0
 local function performAutoItems()
     local char = LocalPlayer.Character
     local hum = char and char:FindFirstChildOfClass("Humanoid")
     local backpack = LocalPlayer:FindFirstChild("Backpack")
-    if hum and backpack then
+    local itemActions = HubState.Config.ItemActions or {}
+    local now = os.clock()
+
+    -- Radar hanya diaktifkan jika eksplisit dinyalakan di menu Item Actions, berikan interval aman minimal 60 detik
+    if itemActions["Auto Gunakan Radar"] and (now - lastRadarPing > 60) and hum and backpack then
+        lastRadarPing = now
         for _, cont in ipairs({char, backpack}) do
             for _, tool in ipairs(cont:GetChildren()) do
                 if tool:IsA("Tool") and tool.Name:lower():find("radar") then
-                    if cont == backpack then hum:EquipTool(tool) task.wait(0.1) end
+                    if cont == backpack then hum:EquipTool(tool) task.wait(0.05) end
                     tool:Activate()
                     for _, rem in ipairs(tool:GetDescendants()) do
                         if rem:IsA("RemoteEvent") then rem:FireServer() end
@@ -2736,6 +2780,8 @@ local function performAutoItems()
                 end
             end
         end
+        task.wait(0.1)
+        if HubState.EquipBestPickaxe then HubState.EquipBestPickaxe() end
     end
     for _, rem in ipairs(cachedItemRemotes) do
         pcall(function() if rem:IsA("RemoteEvent") then rem:FireServer() else rem:InvokeServer() end end)
@@ -2791,7 +2837,8 @@ HubState:Track(safeConnect(Services.RunService.Heartbeat, function()
             LocalPlayer:FindFirstChild("Stats"),
             LocalPlayer:FindFirstChild("leaderstats"),
             LocalPlayer:FindFirstChild("Values"),
-            LocalPlayer:FindFirstChild("PlayerData")
+            LocalPlayer:FindFirstChild("PlayerData"),
+            LocalPlayer:FindFirstChild("PlayerGui")
         }
         for _, cont in ipairs(containers) do
             if cont then
@@ -2873,6 +2920,48 @@ HubState:Track(safeConnect(Services.RunService.Heartbeat, function()
     end
 end))
 
+-- Helper Pembaca Ketinggian Nyata Gunung Antartika (Meter)
+local function getGameAltitude()
+    local char = LocalPlayer.Character
+    local root = char and char:FindFirstChild("HumanoidRootPart")
+    if not root then return 0 end
+
+    -- 1. Deteksi teks Ketinggian asli dari PlayerGui (1:1 UI Ketinggian ... m)
+    local pgui = LocalPlayer:FindFirstChild("PlayerGui")
+    if pgui then
+        for _, t in ipairs(pgui:GetDescendants()) do
+            if t:IsA("TextLabel") and t.Visible and t.Text then
+                local txt = t.Text:lower()
+                if txt:find("ketinggian") or txt:find("altitude") or txt:find("height") then
+                    local num = txt:match("(%d+[%d%,]*)")
+                    if num then
+                        num = num:gsub(",", "")
+                        local val = tonumber(num)
+                        if val and val > 0 then return val end
+                    end
+                end
+            end
+        end
+    end
+
+    -- 2. Cek atribut & ValueBase data pemain
+    local containers = {LocalPlayer:FindFirstChild("Data"), LocalPlayer:FindFirstChild("Stats"), LocalPlayer:FindFirstChild("leaderstats")}
+    for _, c in ipairs(containers) do
+        if c then
+            for _, v in ipairs(c:GetChildren()) do
+                local vn = v.Name:lower()
+                if (vn:find("alt") or vn:find("height") or vn:find("ketinggian") or vn:find("meter")) and v:IsA("ValueBase") and type(v.Value) == "number" then
+                    return v.Value
+                end
+            end
+        end
+    end
+
+    -- 3. Fallback Posisi Y karakter (1 meter ~ 3.2 stud di Roblox atau Y langsung)
+    local y = root.Position.Y
+    return math.max(0, math.floor(y))
+end
+
 -- 13. Player Mods: Anti-Ragdoll & Safe No Fall Damage (Deep Enforcer)
 local function hookAntiRagdoll(char)
     if not char then return end
@@ -2885,11 +2974,20 @@ local function hookAntiRagdoll(char)
             end
         end
     end)
-    -- Perisai Darah dari Kerusakan Dingin / Suhu Ketinggian Ekstrim
+    -- Perisai Darah dari Kerusakan Dingin / Suhu Ketinggian Ekstrim (Gunung Antartika)
     hum.HealthChanged:Connect(function(hp)
         if (HubState.Config.AntiFreeze or (HubState.Config.PlayerModsEnabled and HubState.Config.PlayerModsList and HubState.Config.PlayerModsList["Anti Freeze"])) and hp < hum.MaxHealth then
-            local root = char:FindFirstChild("HumanoidRootPart")
-            if root and root.Position.Y > 30 then
+            local currentAlt = getGameAltitude()
+            local threshold = HubState.Config.ColdAltitudeThreshold or 1500
+            local isColdActive = false
+            for _, a in ipairs({"Cold", "Freeze", "Frost", "IsFrozen", "Freezing"}) do
+                local v = LocalPlayer:GetAttribute(a) or char:GetAttribute(a)
+                if v and (v == true or (type(v) == "number" and v > 0)) then
+                    isColdActive = true
+                    break
+                end
+            end
+            if currentAlt >= threshold or isColdActive then
                 hum.Health = hum.MaxHealth
             end
         end
@@ -3127,7 +3225,7 @@ task.spawn(function()
             HubState.EquipBestPickaxe()
             autoRepairTools()
             local tool = LocalPlayer.Character:FindFirstChildOfClass("Tool")
-            if tool then tool:Activate() end
+            if tool and not tool.Name:lower():find("radar") then tool:Activate() end
             local reach = HubState.Config.MineRange or 35
             local targetOre = getClosestOre(reach)
             if targetOre then
@@ -3141,7 +3239,7 @@ task.spawn(function()
             if targetOre then
                 HubState.EquipBestPickaxe()
                 local tool = LocalPlayer.Character:FindFirstChildOfClass("Tool")
-                if tool then tool:Activate() end
+                if tool and not tool.Name:lower():find("radar") then tool:Activate() end
                 local powerMult = (HubState.Config.Power8x or (HubState.Config.MiningModsList and HubState.Config.MiningModsList["8x Kekuatan"])) and 8 or 2
                 fireMiningHit(targetOre, powerMult)
             end
@@ -3258,7 +3356,7 @@ end
 -- Notifikasi Konfirmasi bahwa UI Berhasil Dimuat
 pcall(function()
     game:GetService("StarterGui"):SetCore("SendNotification", {
-        Title = "Antigravity Hub v9.7.4",
+        Title = "Antigravity Hub v9.7.5",
         Text = "Menu berhasil dimuat! Tekan tombol 'B' di samping layar.",
         Duration = 5
     })
@@ -4603,26 +4701,34 @@ addToggle(CardItems, "Enable Auto Items", HubState.Config.AutoItems, function(en
     StatusItems.TextColor3 = enabled and Color3.fromRGB(74, 222, 128) or Color3.fromRGB(200, 180, 185)
 end)
 addMultiSelectDropdown(CardItems, "Item Actions", {"Radar Batu Besar", "Radar Kristal 99x", "Radar Meteor", "Auto Gunakan Radar", "Beli Bom Dinamit", "Buka Chest & Crate"}, HubState.Config.ItemActions or {
-    ["Radar Batu Besar"] = true, ["Radar Kristal 99x"] = true, ["Radar Meteor"] = true, ["Auto Gunakan Radar"] = true, ["Beli Bom Dinamit"] = false, ["Buka Chest & Crate"] = true
+    ["Radar Batu Besar"] = false, ["Radar Kristal 99x"] = false, ["Radar Meteor"] = false, ["Auto Gunakan Radar"] = false, ["Beli Bom Dinamit"] = false, ["Buka Chest & Crate"] = true
 }, function(r)
     HubState.Config.ItemActions = r
     if r["Beli Bom Dinamit"] then HubState.Config.AutoBomb = true end
 end)
 addButton(CardItems, "Ping Radar Tools Now", "Ping Now", function()
     pcall(function()
+        local char = LocalPlayer.Character
+        local hum = char and char:FindFirstChildOfClass("Humanoid")
         local backpack = LocalPlayer:FindFirstChild("Backpack")
-        local containers = {LocalPlayer.Character, backpack}
+        local containers = {char, backpack}
         for _, cont in ipairs(containers) do
             if cont then
                 for _, tool in ipairs(cont:GetChildren()) do
                     if tool:IsA("Tool") and tool.Name:lower():find("radar") then
+                        if cont == backpack and hum then
+                            hum:EquipTool(tool)
+                            task.wait(0.05)
+                        end
                         tool:Activate()
                     end
                 end
             end
         end
+        task.wait(0.1)
+        if HubState.EquipBestPickaxe then HubState.EquipBestPickaxe() end
     end)
-    StatusItems.Text = "[INSTANT] Radar Activated!"
+    StatusItems.Text = "[INSTANT] Radar Activated & Pickaxe Restored!"
     StatusItems.TextColor3 = Color3.fromRGB(74, 222, 128)
 end)
 
@@ -4763,6 +4869,9 @@ addButton(CardPlayerMods, "Quick Jump: 150 (Super)", "150", function()
         local hum = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
         if hum then hum.JumpPower = 150 end
     end
+end)
+addSlider(CardPlayerMods, "Ambang Ketinggian Dingin (Meter)", 100, 30000, HubState.Config.ColdAltitudeThreshold or 1500, function(v)
+    HubState.Config.ColdAltitudeThreshold = v
 end)
 
 -- 12. TAB: MINING MODS (1:1 SESUAI SCREENSHOT)
@@ -5073,7 +5182,7 @@ end
 pcall(function()
     Services.StarterGui:SetCore("SendNotification", {
         Title = "BARRAGE",
-        Text = "Barrage Hub v9.7.4 [Mine Antarctica Suite] berhasil dimuat! [Production Certified Zero-Bug Master Release]",
+        Text = "Barrage Hub v9.7.5 [Mine Antarctica Suite] berhasil dimuat! [Radar Filtering & Mountain Cold Threshold Overhaul]",
         Duration = 5
     })
 end)
